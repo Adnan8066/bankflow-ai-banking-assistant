@@ -10,6 +10,21 @@ modular AI banking assistant service.
 
 ---
 
+## Get the code on your computer
+
+```bash
+git clone https://github.com/Adnan8066/bankflow-ai-banking-assistant.git
+cd bankflow-ai-banking-assistant
+```
+
+Then follow [Backend setup](#6-backend-setup) and [Frontend setup](#7-frontend-setup), or read the
+step by step walkthroughs in `FULL_CODE.md`.
+
+The repository is public. Change that any time in the repository **Settings**, under **General**,
+**Danger zone**, **Change repository visibility**.
+
+---
+
 ## 1. Project overview
 
 BankFlow lets a customer register, log in, see a banking dashboard, explore transactions, apply for
