@@ -1,0 +1,33 @@
+# Python and Django
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+staticfiles/
+media/
+*.sqlite3
+db.sqlite3
+
+# Node and Vite
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+yarn-error.log*
+
+# Secrets and local settings
+.env
+.env.local
+*.local
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local build and review artefacts
+docx_qa/
+bankflow-full-source.zip
+*.log
