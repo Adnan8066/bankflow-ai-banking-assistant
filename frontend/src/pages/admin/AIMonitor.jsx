@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Box,
+  Button,
   Chip,
   Grid,
   InputAdornment,
@@ -128,22 +129,9 @@ export default function AIMonitor() {
                 }}
                 sx={{ flexGrow: 1 }}
               />
-              <Box
-                component="button"
-                onClick={() => load(search)}
-                sx={{
-                  px: 2,
-                  py: 1,
-                  borderRadius: 2,
-                  border: "none",
-                  backgroundColor: "primary.main",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
+              <Button variant="contained" onClick={() => load(search)}>
                 Search
-              </Box>
+              </Button>
             </Stack>
 
             {data.results.length === 0 ? (

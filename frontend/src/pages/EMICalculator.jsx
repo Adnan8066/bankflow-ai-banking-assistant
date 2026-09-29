@@ -45,7 +45,7 @@ export default function EMICalculator() {
   );
 
   const donutData = [
-    { name: "Principal", value: result.principal, color: "#16357f" },
+    { name: "Principal", value: result.principal, color: "primary.main" },
     { name: "Total interest", value: result.total_interest, color: "#0ea5e9" },
   ];
 

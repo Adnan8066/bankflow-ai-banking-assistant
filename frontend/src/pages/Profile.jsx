@@ -22,6 +22,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import authService from "../services/authService";
 import { getErrorMessage } from "../services/api";
 import { formatCurrency, formatDate, initials } from "../utils/formatCurrency.js";
+import { BRAND } from "../branding.js";
 
 export default function Profile() {
   const { reloadProfile, user } = useAuth();
@@ -132,7 +133,7 @@ export default function Profile() {
                   width: 88,
                   height: 88,
                   mx: "auto",
-                  bgcolor: "primary.main",
+                  background: BRAND.gradient,
                   fontSize: 30,
                   fontWeight: 700,
                 }}
@@ -199,7 +200,8 @@ export default function Profile() {
                     fullWidth
                     label="Email (read only)"
                     value={user?.email || ""}
-                    disabled
+                    InputProps={{ readOnly: true }}
+                    helperText="Your email identifies the login and cannot be changed."
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>

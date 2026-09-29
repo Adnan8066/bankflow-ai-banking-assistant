@@ -7,13 +7,18 @@ import { createTheme } from "@mui/material/styles";
 const LIGHT = {
   primary: { main: "#16357f", light: "#3f74ff", dark: "#0d2258", contrastText: "#ffffff" },
   secondary: { main: "#0f9d8f", contrastText: "#ffffff" },
-  success: { main: "#16a34a" },
+  // Slightly darker than a typical "success" green so white text on a filled chip stays readable.
+  success: { main: "#15803d" },
   error: { main: "#e11d48" },
-  warning: { main: "#f59e0b" },
+  warning: { main: "#b45309" },
   info: { main: "#4f46e5" },
   background: { default: "#f5f7fc", paper: "#ffffff" },
   text: { primary: "#0e1729", secondary: "#5a6784" },
   divider: "#e6eaf3",
+  action: {
+    disabled: "#58627a",
+    disabledBackground: "#eaedf5",
+  },
 };
 
 const DARK = {
@@ -26,6 +31,10 @@ const DARK = {
   background: { default: "#080d19", paper: "#111a2c" },
   text: { primary: "#e9eefb", secondary: "#98a5c0" },
   divider: "#232e46",
+  action: {
+    disabled: "#9aa4bb",
+    disabledBackground: "#1c2436",
+  },
 };
 
 export function createAppTheme(mode = "light") {
@@ -76,6 +85,10 @@ export function createAppTheme(mode = "light") {
         },
       },
       MuiChip: { styleOverrides: { root: { fontWeight: 600 } } },
+      MuiAvatar: {
+        // Every avatar in this app sits on the brand gradient, so the initials are always white.
+        styleOverrides: { root: { color: "#ffffff" } },
+      },
       MuiTableCell: {
         styleOverrides: {
           head: {

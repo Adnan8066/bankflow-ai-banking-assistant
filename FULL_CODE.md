@@ -4529,6 +4529,7 @@ export default defineConfig({
   --bf-glow: #e6ecfb;
   --bf-header-rgb: 255, 255, 255;
   --bf-shell: #f5f7fc;
+  --bf-chart-label: #47536e;
 }
 
 html[data-theme="dark"] {
@@ -4541,6 +4542,7 @@ html[data-theme="dark"] {
   --bf-glow: #17223c;
   --bf-header-rgb: 17, 26, 44;
   --bf-shell: #080d19;
+  --bf-chart-label: #b6c1d8;
 }
 
 html,
@@ -4597,6 +4599,23 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
 html {
   scroll-behavior: smooth;
 }
+
+/* Charts: keep axis labels, legends and grid lines readable in both modes. */
+.recharts-cartesian-axis-tick-value {
+  fill: var(--bf-chart-label) !important;
+}
+
+.recharts-legend-item-text {
+  color: var(--bf-chart-label) !important;
+}
+
+.recharts-pie-label-text {
+  fill: var(--bf-chart-label) !important;
+}
+
+.recharts-cartesian-grid line {
+  stroke: var(--bf-border);
+}
 ```
 
 ### frontend/src/theme.js
@@ -4611,13 +4630,18 @@ import { createTheme } from "@mui/material/styles";
 const LIGHT = {
   primary: { main: "#16357f", light: "#3f74ff", dark: "#0d2258", contrastText: "#ffffff" },
   secondary: { main: "#0f9d8f", contrastText: "#ffffff" },
-  success: { main: "#16a34a" },
+  // Slightly darker than a typical "success" green so white text on a filled chip stays readable.
+  success: { main: "#15803d" },
   error: { main: "#e11d48" },
-  warning: { main: "#f59e0b" },
+  warning: { main: "#b45309" },
   info: { main: "#4f46e5" },
   background: { default: "#f5f7fc", paper: "#ffffff" },
   text: { primary: "#0e1729", secondary: "#5a6784" },
   divider: "#e6eaf3",
+  action: {
+    disabled: "#58627a",
+    disabledBackground: "#eaedf5",
+  },
 };
 
 const DARK = {
@@ -4630,6 +4654,10 @@ const DARK = {
   background: { default: "#080d19", paper: "#111a2c" },
   text: { primary: "#e9eefb", secondary: "#98a5c0" },
   divider: "#232e46",
+  action: {
+    disabled: "#9aa4bb",
+    disabledBackground: "#1c2436",
+  },
 };
 
 export function createAppTheme(mode = "light") {
@@ -4680,6 +4708,10 @@ export function createAppTheme(mode = "light") {
         },
       },
       MuiChip: { styleOverrides: { root: { fontWeight: 600 } } },
+      MuiAvatar: {
+        // Every avatar in this app sits on the brand gradient, so the initials are always white.
+        styleOverrides: { root: { color: "#ffffff" } },
+      },
       MuiTableCell: {
         styleOverrides: {
           head: {
@@ -6111,6 +6143,7 @@ import SmartToyIcon from "@mui/icons-material/SmartToy";
 import PersonIcon from "@mui/icons-material/Person";
 
 import { initials, relativeTime } from "../utils/formatCurrency.js";
+import { BRAND } from "../branding.js";
 
 /**
  * A single chat bubble. Used for both live answers and saved chat history.
@@ -6127,7 +6160,7 @@ export default function ChatMessage({ message, sender = "ai", userName = "You", 
       className="fade-in"
     >
       {!isUser && (
-        <Avatar sx={{ bgcolor: "primary.main", width: 36, height: 36 }}>
+        <Avatar sx={{ background: BRAND.gradient, width: 36, height: 36 }}>
           <SmartToyIcon fontSize="small" />
         </Avatar>
       )}
@@ -6438,7 +6471,7 @@ export default function Landing() {
   const goToApp = () => navigate(isAuthenticated ? (isAdmin ? "/admin" : "/dashboard") : "/login");
 
   return (
-    <Box id="home" sx={{ backgroundColor: "#ffffff" }}>
+    <Box id="home" sx={{ backgroundColor: "background.default" }}>
       <PublicHeader />
 
       {/* -------------------------------------------------------------- hero */}
@@ -6523,7 +6556,7 @@ export default function Landing() {
                           width: 40,
                           height: 40,
                           borderRadius: 2,
-                          backgroundColor: "#eef2fd",
+                          backgroundColor: "var(--bf-tint)",
                           color: "primary.main",
                         }}
                       >
@@ -6559,7 +6592,8 @@ export default function Landing() {
                           borderRadius: 3,
                           maxWidth: "85%",
                           fontSize: 14,
-                          backgroundColor: line.role === "user" ? "primary.main" : "#f4f6fb",
+                        background:
+                          line.role === "user" ? BRAND.gradient : "var(--bf-surface)",
                           color: line.role === "user" ? "#fff" : "text.primary",
                         }}
                       >
@@ -6603,7 +6637,7 @@ export default function Landing() {
                       height: 46,
                       borderRadius: 2,
                       color: "primary.main",
-                      backgroundColor: "#eef2fd",
+                      backgroundColor: "var(--bf-tint)",
                       mb: 2,
                     }}
                   >
@@ -6623,7 +6657,7 @@ export default function Landing() {
       </Container>
 
       {/* --------------------------------------------------------- assistant */}
-      <Box id="assistant" sx={{ backgroundColor: "#f7f9ff", py: { xs: 6, md: 9 } }}>
+      <Box id="assistant" sx={{ backgroundColor: "var(--bf-surface)", py: { xs: 6, md: 9 } }}>
         <Container maxWidth="lg">
           <Grid container spacing={5} alignItems="center">
             <Grid item xs={12} md={6}>
@@ -6643,7 +6677,7 @@ export default function Landing() {
                   "Explain EMI / KYC / credit score",
                 ].map((q) => (
                   <Stack key={q} direction="row" spacing={1.25} alignItems="center">
-                    <FiCheckCircle color="#16357f" />
+                    <FiCheckCircle color="primary.main" />
                     <Typography variant="body2">{q}</Typography>
                   </Stack>
                 ))}
@@ -6713,7 +6747,7 @@ export default function Landing() {
       </Container>
 
       {/* ------------------------------------------------------------- about */}
-      <Box id="about" sx={{ backgroundColor: "#f7f9ff", py: { xs: 6, md: 8 } }}>
+      <Box id="about" sx={{ backgroundColor: "var(--bf-surface)", py: { xs: 6, md: 8 } }}>
         <Container maxWidth="lg">
           <Grid container spacing={4} alignItems="center">
             <Grid item xs={12} md={7}>
@@ -6785,13 +6819,13 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../services/api";
+import BrandLogo from "../components/BrandLogo.jsx";
 
 const DEMO_ACCOUNTS = [
   { label: "Customer", email: "mohammed@bankflow.com", password: "Demo@12345" },
@@ -6857,29 +6891,9 @@ export default function Login() {
     >
       <Card sx={{ width: "100%", maxWidth: 440, borderRadius: 4 }}>
         <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 3 }}>
-            <Box
-              sx={{
-                display: "grid",
-                placeItems: "center",
-                width: 40,
-                height: 40,
-                borderRadius: 2,
-                backgroundColor: "primary.main",
-                color: "#fff",
-              }}
-            >
-              <AccountBalanceWalletIcon fontSize="small" />
-            </Box>
-            <Box>
-              <Typography variant="subtitle1" fontWeight={800} lineHeight={1.1}>
-                BankFlow
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                AI Banking Assistant
-              </Typography>
-            </Box>
-          </Stack>
+          <Box sx={{ mb: 3 }}>
+            <BrandLogo size={40} />
+          </Box>
 
           <Typography variant="h5" sx={{ mb: 0.5 }}>
             Welcome back
@@ -6999,12 +7013,12 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../services/api";
+import BrandLogo from "../components/BrandLogo.jsx";
 
 const EMPLOYMENT_TYPES = [
   { value: "SALARIED", label: "Salaried" },
@@ -7083,29 +7097,9 @@ export default function Register() {
     >
       <Card sx={{ width: "100%", maxWidth: 720, borderRadius: 4 }}>
         <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 3 }}>
-            <Box
-              sx={{
-                display: "grid",
-                placeItems: "center",
-                width: 40,
-                height: 40,
-                borderRadius: 2,
-                backgroundColor: "primary.main",
-                color: "#fff",
-              }}
-            >
-              <AccountBalanceWalletIcon fontSize="small" />
-            </Box>
-            <Box>
-              <Typography variant="subtitle1" fontWeight={800} lineHeight={1.1}>
-                BankFlow
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Create your demo customer profile
-              </Typography>
-            </Box>
-          </Stack>
+          <Box sx={{ mb: 3 }}>
+            <BrandLogo size={40} subtitle="Create your demo customer profile" />
+          </Box>
 
           {success && (
             <Alert
@@ -9014,7 +9008,7 @@ export default function EMICalculator() {
   );
 
   const donutData = [
-    { name: "Principal", value: result.principal, color: "#16357f" },
+    { name: "Principal", value: result.principal, color: "primary.main" },
     { name: "Total interest", value: result.total_interest, color: "#0ea5e9" },
   ];
 
@@ -9334,6 +9328,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import aiService from "../services/aiService";
 import { getErrorMessage } from "../services/api";
 import { relativeTime } from "../utils/formatCurrency.js";
+import { BRAND } from "../branding.js";
 
 const WELCOME = {
   role: "ai",
@@ -9527,7 +9522,7 @@ export default function AIAssistant() {
               <MenuOpenIcon />
             </IconButton>
           )}
-          <Avatar sx={{ bgcolor: "primary.main" }}>
+          <Avatar sx={{ background: BRAND.gradient }}>
             <SmartToyIcon fontSize="small" />
           </Avatar>
           <Box sx={{ flexGrow: 1 }}>
@@ -9560,7 +9555,7 @@ export default function AIAssistant() {
 
           {sending && (
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pl: 1 }}>
-              <Avatar sx={{ bgcolor: "primary.main", width: 36, height: 36 }}>
+              <Avatar sx={{ background: BRAND.gradient, width: 36, height: 36 }}>
                 <SmartToyIcon fontSize="small" />
               </Avatar>
               <Stack direction="row" spacing={1} alignItems="center">
@@ -9855,6 +9850,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import authService from "../services/authService";
 import { getErrorMessage } from "../services/api";
 import { formatCurrency, formatDate, initials } from "../utils/formatCurrency.js";
+import { BRAND } from "../branding.js";
 
 export default function Profile() {
   const { reloadProfile, user } = useAuth();
@@ -9965,7 +9961,7 @@ export default function Profile() {
                   width: 88,
                   height: 88,
                   mx: "auto",
-                  bgcolor: "primary.main",
+                  background: BRAND.gradient,
                   fontSize: 30,
                   fontWeight: 700,
                 }}
@@ -10032,7 +10028,8 @@ export default function Profile() {
                     fullWidth
                     label="Email (read only)"
                     value={user?.email || ""}
-                    disabled
+                    InputProps={{ readOnly: true }}
+                    helperText="Your email identifies the login and cannot be changed."
                   />
                 </Grid>
                 <Grid item xs={12} sm={6}>
@@ -11503,6 +11500,7 @@ export default function AdminAnalytics() {
 import { useCallback, useEffect, useState } from "react";
 import {
   Box,
+  Button,
   Chip,
   Grid,
   InputAdornment,
@@ -11630,22 +11628,9 @@ export default function AIMonitor() {
                 }}
                 sx={{ flexGrow: 1 }}
               />
-              <Box
-                component="button"
-                onClick={() => load(search)}
-                sx={{
-                  px: 2,
-                  py: 1,
-                  borderRadius: 2,
-                  border: "none",
-                  backgroundColor: "primary.main",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 600,
-                }}
-              >
+              <Button variant="contained" onClick={() => load(search)}>
                 Search
-              </Box>
+              </Button>
             </Stack>
 
             {data.results.length === 0 ? (

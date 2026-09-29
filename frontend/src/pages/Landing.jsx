@@ -79,7 +79,7 @@ export default function Landing() {
   const goToApp = () => navigate(isAuthenticated ? (isAdmin ? "/admin" : "/dashboard") : "/login");
 
   return (
-    <Box id="home" sx={{ backgroundColor: "#ffffff" }}>
+    <Box id="home" sx={{ backgroundColor: "background.default" }}>
       <PublicHeader />
 
       {/* -------------------------------------------------------------- hero */}
@@ -164,7 +164,7 @@ export default function Landing() {
                           width: 40,
                           height: 40,
                           borderRadius: 2,
-                          backgroundColor: "#eef2fd",
+                          backgroundColor: "var(--bf-tint)",
                           color: "primary.main",
                         }}
                       >
@@ -200,7 +200,8 @@ export default function Landing() {
                           borderRadius: 3,
                           maxWidth: "85%",
                           fontSize: 14,
-                          backgroundColor: line.role === "user" ? "primary.main" : "#f4f6fb",
+                        background:
+                          line.role === "user" ? BRAND.gradient : "var(--bf-surface)",
                           color: line.role === "user" ? "#fff" : "text.primary",
                         }}
                       >
@@ -244,7 +245,7 @@ export default function Landing() {
                       height: 46,
                       borderRadius: 2,
                       color: "primary.main",
-                      backgroundColor: "#eef2fd",
+                      backgroundColor: "var(--bf-tint)",
                       mb: 2,
                     }}
                   >
@@ -264,7 +265,7 @@ export default function Landing() {
       </Container>
 
       {/* --------------------------------------------------------- assistant */}
-      <Box id="assistant" sx={{ backgroundColor: "#f7f9ff", py: { xs: 6, md: 9 } }}>
+      <Box id="assistant" sx={{ backgroundColor: "var(--bf-surface)", py: { xs: 6, md: 9 } }}>
         <Container maxWidth="lg">
           <Grid container spacing={5} alignItems="center">
             <Grid item xs={12} md={6}>
@@ -284,7 +285,7 @@ export default function Landing() {
                   "Explain EMI / KYC / credit score",
                 ].map((q) => (
                   <Stack key={q} direction="row" spacing={1.25} alignItems="center">
-                    <FiCheckCircle color="#16357f" />
+                    <FiCheckCircle color="primary.main" />
                     <Typography variant="body2">{q}</Typography>
                   </Stack>
                 ))}
@@ -354,7 +355,7 @@ export default function Landing() {
       </Container>
 
       {/* ------------------------------------------------------------- about */}
-      <Box id="about" sx={{ backgroundColor: "#f7f9ff", py: { xs: 6, md: 8 } }}>
+      <Box id="about" sx={{ backgroundColor: "var(--bf-surface)", py: { xs: 6, md: 8 } }}>
         <Container maxWidth="lg">
           <Grid container spacing={4} alignItems="center">
             <Grid item xs={12} md={7}>

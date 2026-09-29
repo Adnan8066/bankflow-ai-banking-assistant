@@ -3,6 +3,7 @@ import SmartToyIcon from "@mui/icons-material/SmartToy";
 import PersonIcon from "@mui/icons-material/Person";
 
 import { initials, relativeTime } from "../utils/formatCurrency.js";
+import { BRAND } from "../branding.js";
 
 /**
  * A single chat bubble. Used for both live answers and saved chat history.
@@ -19,7 +20,7 @@ export default function ChatMessage({ message, sender = "ai", userName = "You", 
       className="fade-in"
     >
       {!isUser && (
-        <Avatar sx={{ bgcolor: "primary.main", width: 36, height: 36 }}>
+        <Avatar sx={{ background: BRAND.gradient, width: 36, height: 36 }}>
           <SmartToyIcon fontSize="small" />
         </Avatar>
       )}

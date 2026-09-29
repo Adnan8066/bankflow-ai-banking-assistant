@@ -33,6 +33,7 @@ import { useAuth } from "../context/AuthContext.jsx";
 import aiService from "../services/aiService";
 import { getErrorMessage } from "../services/api";
 import { relativeTime } from "../utils/formatCurrency.js";
+import { BRAND } from "../branding.js";
 
 const WELCOME = {
   role: "ai",
@@ -226,7 +227,7 @@ export default function AIAssistant() {
               <MenuOpenIcon />
             </IconButton>
           )}
-          <Avatar sx={{ bgcolor: "primary.main" }}>
+          <Avatar sx={{ background: BRAND.gradient }}>
             <SmartToyIcon fontSize="small" />
           </Avatar>
           <Box sx={{ flexGrow: 1 }}>
@@ -259,7 +260,7 @@ export default function AIAssistant() {
 
           {sending && (
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ pl: 1 }}>
-              <Avatar sx={{ bgcolor: "primary.main", width: 36, height: 36 }}>
+              <Avatar sx={{ background: BRAND.gradient, width: 36, height: 36 }}>
                 <SmartToyIcon fontSize="small" />
               </Avatar>
               <Stack direction="row" spacing={1} alignItems="center">

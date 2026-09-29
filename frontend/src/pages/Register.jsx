@@ -13,12 +13,12 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../services/api";
+import BrandLogo from "../components/BrandLogo.jsx";
 
 const EMPLOYMENT_TYPES = [
   { value: "SALARIED", label: "Salaried" },
@@ -97,29 +97,9 @@ export default function Register() {
     >
       <Card sx={{ width: "100%", maxWidth: 720, borderRadius: 4 }}>
         <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ mb: 3 }}>
-            <Box
-              sx={{
-                display: "grid",
-                placeItems: "center",
-                width: 40,
-                height: 40,
-                borderRadius: 2,
-                backgroundColor: "primary.main",
-                color: "#fff",
-              }}
-            >
-              <AccountBalanceWalletIcon fontSize="small" />
-            </Box>
-            <Box>
-              <Typography variant="subtitle1" fontWeight={800} lineHeight={1.1}>
-                BankFlow
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                Create your demo customer profile
-              </Typography>
-            </Box>
-          </Stack>
+          <Box sx={{ mb: 3 }}>
+            <BrandLogo size={40} subtitle="Create your demo customer profile" />
+          </Box>
 
           {success && (
             <Alert

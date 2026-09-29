@@ -10,6 +10,7 @@
   --bf-glow: #e6ecfb;
   --bf-header-rgb: 255, 255, 255;
   --bf-shell: #f5f7fc;
+  --bf-chart-label: #47536e;
 }
 
 html[data-theme="dark"] {
@@ -22,6 +23,7 @@ html[data-theme="dark"] {
   --bf-glow: #17223c;
   --bf-header-rgb: 17, 26, 44;
   --bf-shell: #080d19;
+  --bf-chart-label: #b6c1d8;
 }
 
 html,
@@ -77,4 +79,21 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
 
 html {
   scroll-behavior: smooth;
+}
+
+/* Charts: keep axis labels, legends and grid lines readable in both modes. */
+.recharts-cartesian-axis-tick-value {
+  fill: var(--bf-chart-label) !important;
+}
+
+.recharts-legend-item-text {
+  color: var(--bf-chart-label) !important;
+}
+
+.recharts-pie-label-text {
+  fill: var(--bf-chart-label) !important;
+}
+
+.recharts-cartesian-grid line {
+  stroke: var(--bf-border);
 }
