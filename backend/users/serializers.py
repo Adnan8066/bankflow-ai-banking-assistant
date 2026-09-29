@@ -79,3 +79,34 @@ class RegisterSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         return {"id": instance.id, "name": instance.name, "email": instance.email,
                 "role": instance.role}
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """POST /api/auth/change-password/ - the customer proves the old password first."""
+
+    current_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate_current_password(self, value):
+        user = self.context["request"].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Your current password is not correct.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "The two new passwords do not match."}
+            )
+        if attrs["new_password"] == attrs["current_password"]:
+            raise serializers.ValidationError(
+                {"new_password": "Choose a password different from the current one."}
+            )
+        return attrs
+
+    def save(self, **kwargs):
+        user = self.context["request"].user
+        user.set_password(self.validated_data["new_password"])
+        user.save(update_fields=["password"])
+        return user

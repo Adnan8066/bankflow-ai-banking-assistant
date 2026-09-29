@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 
 from .models import CustomerProfile
 from .serializers import (
+    ChangePasswordSerializer,
     CustomerProfileSerializer,
     ProfileUpdateSerializer,
     RegisterSerializer,
@@ -52,3 +53,17 @@ class ProfileView(APIView):
 
     def patch(self, request):
         return self.put(request)
+
+
+class ChangePasswordView(APIView):
+    """POST /api/auth/change-password/"""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(
+            {"message": "Password updated. Use the new password the next time you log in."}
+        )

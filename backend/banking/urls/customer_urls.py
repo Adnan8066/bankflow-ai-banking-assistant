@@ -10,6 +10,7 @@ from banking.views import (
     NotificationListView,
     NotificationUpdateView,
     TransactionDetailView,
+    TransactionExportView,
     TransactionListView,
 )
 
@@ -17,6 +18,7 @@ urlpatterns = [
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     path("account/", AccountView.as_view(), name="account"),
     path("transactions/", TransactionListView.as_view(), name="transaction-list"),
+    path("transactions/export/", TransactionExportView.as_view(), name="transaction-export"),
     path("transactions/<int:pk>/", TransactionDetailView.as_view(), name="transaction-detail"),
     path("loans/", LoanListCreateView.as_view(), name="loan-list"),
     path("loans/<int:pk>/", LoanDetailView.as_view(), name="loan-detail"),

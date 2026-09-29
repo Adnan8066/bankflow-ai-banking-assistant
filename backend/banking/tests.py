@@ -106,6 +106,32 @@ class BankingApiTests(APITestCase):
         notification.refresh_from_db()
         self.assertTrue(notification.is_read)
 
+    def test_dashboard_insights(self):
+        response = self.client.get("/api/dashboard/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["daily_spending"]), 14)
+        self.assertAlmostEqual(response.data["savings_rate"], 81.3, places=1)
+        self.assertGreater(response.data["average_daily_spend"], 0)
+        self.assertEqual(set(response.data["daily_spending"][0]),
+                         {"date", "label", "weekday", "amount"})
+
+    def test_transactions_csv_export(self):
+        response = self.client.get("/api/transactions/export/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("text/csv", response["Content-Type"])
+        self.assertIn("attachment", response["Content-Disposition"])
+        body = response.content.decode()
+        header = body.splitlines()[0]
+        self.assertIn("Transaction ID", header)
+        self.assertIn("Balance after", header)
+        self.assertEqual(len(body.strip().splitlines()), 4)  # header + 3 transactions
+
+    def test_transactions_csv_export_respects_filters(self):
+        response = self.client.get("/api/transactions/export/", {"category": "Food"})
+        body = response.content.decode().strip().splitlines()
+        self.assertEqual(len(body), 2)  # header + one food transaction
+        self.assertIn("Zomato", body[1])
+
 
 class AdminApiTests(APITestCase):
     def setUp(self):

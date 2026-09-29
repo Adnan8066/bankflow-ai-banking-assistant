@@ -114,6 +114,11 @@ def get_dashboard(user):
         "previous_month_expenses": previous["expense"],
         "expense_change_percent": percent_change(previous["expense"], current["expense"]),
         "transaction_count": current["count"],
+        "savings_rate": savings_rate(current["income"], current["expense"]),
+        "daily_spending": daily_spending(user, 14),
+        "average_daily_spend": round(
+            sum(item["amount"] for item in daily_spending(user, 14)) / 14, 2
+        ),
         "active_loans": active_loans.count(),
         "total_loans": loans.count(),
         "total_outstanding": round(sum(to_float(l.remaining_amount) for l in active_loans), 2),
@@ -228,6 +233,41 @@ def biggest_expense(user, start=None, end=None):
     }
 
 
+def savings_rate(income, expense):
+    """Share of this month's income that was not spent, as a percentage."""
+    income = float(income or 0)
+    expense = float(expense or 0)
+    if income <= 0:
+        return 0.0
+    return round((income - expense) / income * 100, 1)
+
+
+def daily_spending(user, days=14):
+    """Debit totals for the last `days` days, with quiet days filled in as zero."""
+    today = timezone.localdate()
+    start = today - timedelta(days=days - 1)
+    qs = customer_transactions(user).filter(
+        transaction_type=Transaction.Type.DEBIT,
+        status=Transaction.Status.COMPLETED,
+        date__gte=aware(start),
+    )
+    totals = {}
+    for txn in qs:
+        key = timezone.localtime(txn.date).date().isoformat()
+        totals[key] = totals.get(key, 0) + to_float(txn.amount)
+
+    series = []
+    for offset in range(days):
+        day = start + timedelta(days=offset)
+        series.append({
+            "date": day.isoformat(),
+            "label": day.strftime("%d %b"),
+            "weekday": day.strftime("%a"),
+            "amount": round(totals.get(day.isoformat(), 0), 2),
+        })
+    return series
+
+
 # --------------------------------------------------------------- bootstrapping -
 def random_account_number():
     return "5" + "".join(random.choices("0123456789", k=11))
@@ -284,10 +324,23 @@ def month_start_offset(offset=0):
 
 
 def demo_month_datetime(month_offset, day, hour=11, minute=30):
-    """A safe date inside a month (never in the future, never past month end)."""
+    """A safe date inside a month (never in the future, never past month end).
+
+    A negative `day` counts backwards from today, which keeps the newest demo
+    transactions recent enough for the daily spending chart to look alive.
+    """
     start = month_start_offset(month_offset)
     next_month = (start + timedelta(days=32)).replace(day=1)
     last_day = (next_month - timedelta(days=1)).day
+
+    if month_offset == 0 and day < 0:
+        target = timezone.localdate() + timedelta(days=day)
+        if target < start:
+            target = start
+        return timezone.make_aware(
+            datetime.combine(target, datetime.min.time())
+        ) + timedelta(hours=hour, minutes=minute)
+
     day = min(day, last_day)
     if month_offset == 0:
         day = min(day, timezone.localdate().day)
@@ -319,15 +372,15 @@ DEMO_LEDGER = [
     (1, 26, 12000, "Freelance project payment", "Other", "CREDIT"),
     # ------------------------------------------------------ this month -----
     (0, 1, 45000, "Monthly salary credited - Infosys Ltd", "Salary", "CREDIT"),
-    (0, 2, 2450, "Amazon - electronics order", "Shopping", "DEBIT"),
-    (0, 3, 1200, "Zomato - dinner order", "Food", "DEBIT"),
-    (0, 4, 1500, "Electricity bill - BESCOM", "Bills", "DEBIT"),
-    (0, 5, 2000, "IRCTC train tickets", "Travel", "DEBIT"),
-    (0, 6, 800, "PVR Cinemas - movie tickets", "Entertainment", "DEBIT"),
-    (0, 7, 4750, "Croma - new laptop accessories", "Shopping", "DEBIT"),
-    (0, 8, 950, "Swiggy - lunch order", "Food", "DEBIT"),
-    (0, 9, 1800, "UPI transfer to friend", "Transfer", "DEBIT"),
-    (0, 10, 3000, "Insurance premium - demo policy", "Other", "DEBIT"),
+    (0, -1, 2450, "Amazon - electronics order", "Shopping", "DEBIT"),
+    (0, -2, 1200, "Zomato - dinner order", "Food", "DEBIT"),
+    (0, -3, 1500, "Electricity bill - BESCOM", "Bills", "DEBIT"),
+    (0, -4, 2000, "IRCTC train tickets", "Travel", "DEBIT"),
+    (0, -5, 800, "PVR Cinemas - movie tickets", "Entertainment", "DEBIT"),
+    (0, -6, 4750, "Croma - new laptop accessories", "Shopping", "DEBIT"),
+    (0, -8, 950, "Swiggy - lunch order", "Food", "DEBIT"),
+    (0, -9, 1800, "UPI transfer to friend", "Transfer", "DEBIT"),
+    (0, -11, 3000, "Insurance premium - demo policy", "Other", "DEBIT"),
 ]
 
 

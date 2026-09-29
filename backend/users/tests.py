@@ -71,3 +71,55 @@ class ProfileTests(APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.name, "New Name")
         self.assertEqual(self.user.profile.phone, "+91 91111 11111")
+
+
+class ChangePasswordTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="password@bankflow.com", password="Demo@12345", name="Password User"
+        )
+        self.client.force_authenticate(self.user)
+
+    def test_change_password_success(self):
+        response = self.client.post("/api/auth/change-password/", {
+            "current_password": "Demo@12345",
+            "new_password": "NewDemo@2026",
+            "confirm_password": "NewDemo@2026",
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("NewDemo@2026"))
+
+    def test_change_password_rejects_wrong_current_password(self):
+        response = self.client.post("/api/auth/change-password/", {
+            "current_password": "WrongPassword1",
+            "new_password": "NewDemo@2026",
+            "confirm_password": "NewDemo@2026",
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Demo@12345"))
+
+    def test_change_password_rejects_mismatch_and_weak_password(self):
+        mismatch = self.client.post("/api/auth/change-password/", {
+            "current_password": "Demo@12345",
+            "new_password": "NewDemo@2026",
+            "confirm_password": "Different@2026",
+        })
+        self.assertEqual(mismatch.status_code, status.HTTP_400_BAD_REQUEST)
+
+        weak = self.client.post("/api/auth/change-password/", {
+            "current_password": "Demo@12345",
+            "new_password": "123",
+            "confirm_password": "123",
+        })
+        self.assertEqual(weak.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_change_password_requires_login(self):
+        self.client.force_authenticate(None)
+        response = self.client.post("/api/auth/change-password/", {
+            "current_password": "Demo@12345",
+            "new_password": "NewDemo@2026",
+            "confirm_password": "NewDemo@2026",
+        })
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

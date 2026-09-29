@@ -1,4 +1,7 @@
 """Customer facing API endpoints (JWT protected)."""
+import csv
+
+from django.http import HttpResponse
 from django.db.models import Q
 from django.utils.dateparse import parse_date
 from rest_framework import generics, status
@@ -23,6 +26,34 @@ from .services import (
 )
 
 
+def filter_transactions(queryset, params):
+    """Apply the transaction filters in one place so the list and the CSV export agree."""
+    search = params.get("search")
+    if search:
+        queryset = queryset.filter(
+            Q(description__icontains=search)
+            | Q(transaction_id__icontains=search)
+            | Q(category__icontains=search)
+        )
+    if params.get("category") and params["category"] != "ALL":
+        queryset = queryset.filter(category=params["category"])
+    if params.get("type") and params["type"] != "ALL":
+        queryset = queryset.filter(transaction_type=params["type"].upper())
+    if params.get("status") and params["status"] != "ALL":
+        queryset = queryset.filter(status=params["status"].upper())
+
+    start = parse_date(params.get("start_date") or "")
+    end = parse_date(params.get("end_date") or "")
+    if start:
+        queryset = queryset.filter(date__date__gte=start)
+    if end:
+        queryset = queryset.filter(date__date__lte=end)
+
+    ordering = params.get("ordering") or "-date"
+    allowed = {"date", "-date", "amount", "-amount", "category", "-category"}
+    return queryset.order_by(ordering if ordering in allowed else "-date")
+
+
 class AccountView(APIView):
     """GET /api/account/"""
 
@@ -43,33 +74,10 @@ class TransactionListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = customer_transactions(self.request.user).select_related("account")
-        params = self.request.query_params
-
-        search = params.get("search")
-        if search:
-            qs = qs.filter(
-                Q(description__icontains=search)
-                | Q(transaction_id__icontains=search)
-                | Q(category__icontains=search)
-            )
-        if params.get("category") and params["category"] != "ALL":
-            qs = qs.filter(category=params["category"])
-        if params.get("type") and params["type"] != "ALL":
-            qs = qs.filter(transaction_type=params["type"].upper())
-        if params.get("status") and params["status"] != "ALL":
-            qs = qs.filter(status=params["status"].upper())
-
-        start = parse_date(params.get("start_date") or "")
-        end = parse_date(params.get("end_date") or "")
-        if start:
-            qs = qs.filter(date__date__gte=start)
-        if end:
-            qs = qs.filter(date__date__lte=end)
-
-        ordering = params.get("ordering") or "-date"
-        allowed = {"date", "-date", "amount", "-amount", "category", "-category"}
-        return qs.order_by(ordering if ordering in allowed else "-date")
+        return filter_transactions(
+            customer_transactions(self.request.user).select_related("account"),
+            self.request.query_params,
+        )
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
@@ -93,6 +101,37 @@ class TransactionDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         return customer_transactions(self.request.user).select_related("account")
+
+
+class TransactionExportView(APIView):
+    """GET /api/transactions/export/ - the filtered transactions as a CSV download."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        queryset = filter_transactions(
+            customer_transactions(request.user).select_related("account"),
+            request.query_params,
+        )
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="bankflow-transactions.csv"'
+        writer = csv.writer(response)
+        writer.writerow([
+            "Transaction ID", "Date", "Description", "Category", "Type",
+            "Amount", "Status", "Balance after",
+        ])
+        for txn in queryset:
+            writer.writerow([
+                txn.transaction_id,
+                txn.date.strftime("%Y-%m-%d %H:%M"),
+                txn.description,
+                txn.category,
+                txn.transaction_type,
+                f"{float(txn.amount):.2f}",
+                txn.status,
+                f"{float(txn.balance_after):.2f}",
+            ])
+        return response
 
 
 class LoanListCreateView(generics.ListCreateAPIView):
