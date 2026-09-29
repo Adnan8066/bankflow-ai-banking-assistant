@@ -75,7 +75,7 @@ export function EmptyState({ title, description, icon, action }) {
         textAlign: "center",
         borderRadius: 3,
         borderStyle: "dashed",
-        backgroundColor: "#fbfcff",
+        backgroundColor: "var(--bf-panel)",
       }}
     >
       {icon && <Box sx={{ fontSize: 40, color: "text.secondary", mb: 1 }}>{icon}</Box>}

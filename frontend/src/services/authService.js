@@ -22,6 +22,11 @@ const authService = {
     return data;
   },
 
+  async changePassword(payload) {
+    const { data } = await api.post("/auth/change-password/", payload);
+    return data;
+  },
+
   logout() {
     tokenStore.clear();
   },

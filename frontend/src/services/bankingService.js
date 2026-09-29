@@ -7,6 +7,11 @@ const bankingService = {
   getTransactions: (params = {}) =>
     api.get("/transactions/", { params }).then((r) => r.data),
   getTransaction: (id) => api.get(`/transactions/${id}/`).then((r) => r.data),
+  // Same filters as the list, but as a CSV file for spreadsheets.
+  exportTransactions: (params = {}) =>
+    api
+      .get("/transactions/export/", { params, responseType: "blob" })
+      .then((r) => r.data),
 
   getLoans: (params = {}) => api.get("/loans/", { params }).then((r) => r.data),
   getLoan: (id) => api.get(`/loans/${id}/`).then((r) => r.data),

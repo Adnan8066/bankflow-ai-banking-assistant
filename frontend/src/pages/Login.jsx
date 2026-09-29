@@ -81,7 +81,7 @@ export default function Login() {
         placeItems: "center",
         p: 2,
         background:
-          "radial-gradient(900px 420px at 20% 10%, #e8eefc 0%, #ffffff 55%), #f4f6fb",
+          "radial-gradient(900px 420px at 20% 10%, var(--bf-glow) 0%, var(--bf-surface) 55%), var(--bf-surface)",
       }}
     >
       <Card sx={{ width: "100%", maxWidth: 440, borderRadius: 4 }}>
@@ -176,7 +176,7 @@ export default function Login() {
             </Link>
           </Typography>
 
-          <Box sx={{ mt: 3, p: 2, borderRadius: 3, backgroundColor: "#f8f9fd" }}>
+          <Box sx={{ mt: 3, p: 2, borderRadius: 3, backgroundColor: "var(--bf-surface)" }}>
             <Typography variant="caption" color="text.secondary" fontWeight={700}>
               DEMO LOGINS (click to autofill)
             </Typography>

@@ -19,9 +19,12 @@ import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import LogoutIcon from "@mui/icons-material/Logout";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
+import Brightness4Icon from "@mui/icons-material/Brightness4";
+import Brightness7Icon from "@mui/icons-material/Brightness7";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
+import { useColorMode } from "../context/ColorModeContext.jsx";
 import bankingService from "../services/bankingService";
 import { initials } from "../utils/formatCurrency.js";
 
@@ -44,6 +47,7 @@ const TITLES = {
 
 export default function Navbar({ onMenuClick }) {
   const { user, isAdmin, logout } = useAuth();
+  const { mode, toggleColorMode } = useColorMode();
   const navigate = useNavigate();
   const location = useLocation();
   const [anchorEl, setAnchorEl] = useState(null);
@@ -81,9 +85,10 @@ export default function Navbar({ onMenuClick }) {
     <AppBar
       position="sticky"
       sx={{
-        backgroundColor: "rgba(255,255,255,.92)",
+        backgroundColor: "background.paper",
         backdropFilter: "blur(8px)",
-        borderBottom: "1px solid #e6e9f2",
+        borderBottom: "1px solid",
+        borderColor: "divider",
       }}
     >
       <Toolbar sx={{ gap: 1.5 }}>
@@ -98,6 +103,12 @@ export default function Navbar({ onMenuClick }) {
         <Tooltip title="Ask BankFlow AI">
           <IconButton onClick={() => navigate("/assistant")} sx={{ display: { xs: "none", sm: "inline-flex" } }}>
             <SmartToyIcon />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
+          <IconButton onClick={toggleColorMode} aria-label="Toggle dark mode">
+            {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
           </IconButton>
         </Tooltip>
 

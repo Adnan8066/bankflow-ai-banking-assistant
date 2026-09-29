@@ -1,5 +1,23 @@
 :root {
   color-scheme: light;
+  /* Surface tokens used by the components instead of hard coded light colours,
+     so one attribute on <html> switches the whole application. */
+  --bf-tint: #eef2fd;
+  --bf-surface: #f8f9fd;
+  --bf-panel: #fbfcff;
+  --bf-paper: #ffffff;
+  --bf-border: #e6e9f2;
+  --bf-glow: #e8eefc;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bf-tint: #202b47;
+  --bf-surface: #1a2237;
+  --bf-panel: #141b2c;
+  --bf-paper: #161d2f;
+  --bf-border: #28324a;
+  --bf-glow: #1b2540;
 }
 
 html,
@@ -11,7 +29,6 @@ body,
 
 body {
   font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  background-color: #f4f6fb;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -28,6 +45,10 @@ a {
 ::-webkit-scrollbar-thumb {
   background: #c7cede;
   border-radius: 8px;
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #344060;
 }
 
 ::-webkit-scrollbar-track {

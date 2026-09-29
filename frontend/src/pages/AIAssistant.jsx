@@ -219,7 +219,7 @@ export default function AIAssistant() {
           direction="row"
           spacing={1.5}
           alignItems="center"
-          sx={{ p: 2, borderBottom: "1px solid #e6e9f2" }}
+          sx={{ p: 2, borderBottom: "1px solid var(--bf-border)" }}
         >
           {isMobile && (
             <IconButton size="small" onClick={() => setHistoryOpen(true)}>
@@ -240,7 +240,7 @@ export default function AIAssistant() {
           <Chip size="small" color="success" label="online" />
         </Stack>
 
-        <Box sx={{ flexGrow: 1, overflowY: "auto", p: { xs: 2, md: 3 }, backgroundColor: "#fbfcff" }}>
+        <Box sx={{ flexGrow: 1, overflowY: "auto", p: { xs: 2, md: 3 }, backgroundColor: "var(--bf-panel)" }}>
           {error && (
             <Alert severity="warning" sx={{ mb: 2 }} onClose={() => setError("")}>
               {error}
@@ -274,7 +274,7 @@ export default function AIAssistant() {
         </Box>
 
         {/* ------------------------------------------- suggestions + input */}
-        <Box sx={{ p: 2, borderTop: "1px solid #e6e9f2" }}>
+        <Box sx={{ p: 2, borderTop: "1px solid var(--bf-border)" }}>
           <Stack
             direction="row"
             spacing={1}

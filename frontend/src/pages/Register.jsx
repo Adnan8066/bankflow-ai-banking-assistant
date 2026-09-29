@@ -92,7 +92,7 @@ export default function Register() {
         placeItems: "center",
         p: 2,
         background:
-          "radial-gradient(900px 420px at 80% 5%, #e8eefc 0%, #ffffff 55%), #f4f6fb",
+          "radial-gradient(900px 420px at 80% 5%, var(--bf-glow) 0%, var(--bf-surface) 55%), var(--bf-surface)",
       }}
     >
       <Card sx={{ width: "100%", maxWidth: 720, borderRadius: 4 }}>

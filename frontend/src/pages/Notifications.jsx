@@ -106,7 +106,7 @@ export default function Notifications() {
       <Tabs
         value={tab}
         onChange={(_, value) => setTab(value)}
-        sx={{ mb: 2, borderBottom: "1px solid #e6e9f2" }}
+        sx={{ mb: 2, borderBottom: "1px solid var(--bf-border)" }}
       >
         <Tab value="all" label={`All (${notifications.length})`} />
         <Tab value="unread" label={`Unread (${unread})`} />
@@ -127,8 +127,8 @@ export default function Notifications() {
                 sx={{
                   p: 2,
                   borderRadius: 3,
-                  borderLeft: item.is_read ? "4px solid #e6e9f2" : "4px solid #1b3a8f",
-                  backgroundColor: item.is_read ? "#ffffff" : "#f8faff",
+                  borderLeft: item.is_read ? "4px solid var(--bf-border)" : "4px solid #1b3a8f",
+                  backgroundColor: item.is_read ? "var(--bf-paper)" : "var(--bf-panel)",
                 }}
               >
                 <Stack direction="row" spacing={2} alignItems="flex-start">
@@ -139,7 +139,7 @@ export default function Notifications() {
                       width: 42,
                       height: 42,
                       borderRadius: 2,
-                      backgroundColor: "#eef2fd",
+                      backgroundColor: "var(--bf-tint)",
                       color: "primary.main",
                       flexShrink: 0,
                     }}

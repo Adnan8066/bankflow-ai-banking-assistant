@@ -171,7 +171,7 @@ export default function Loans() {
         onChange={(_, value) => setStatus(value)}
         variant="scrollable"
         scrollButtons="auto"
-        sx={{ mb: 2, borderBottom: "1px solid #e6e9f2" }}
+        sx={{ mb: 2, borderBottom: "1px solid var(--bf-border)" }}
       >
         {STATUS_TABS.map((tab) => (
           <Tab key={tab} value={tab} label={tab === "ALL" ? "All loans" : tab.toLowerCase()} />
@@ -302,7 +302,7 @@ export default function Loans() {
             </Grid>
           </Grid>
 
-          <Box sx={{ mt: 3, p: 2, borderRadius: 3, backgroundColor: "#f8f9fd" }}>
+          <Box sx={{ mt: 3, p: 2, borderRadius: 3, backgroundColor: "var(--bf-surface)" }}>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
               Estimated EMI (live preview)
             </Typography>

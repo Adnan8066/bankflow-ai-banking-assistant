@@ -18,7 +18,8 @@ export default function DashboardCard({
     <Card
       sx={{
         height: "100%",
-        background: gradient || "#ffffff",
+        background: gradient || undefined,
+        bgcolor: gradient ? undefined : "background.paper",
         color: gradient ? "#ffffff" : "inherit",
         transition: "transform 0.18s ease, box-shadow 0.18s ease",
         "&:hover": { transform: "translateY(-3px)", boxShadow: "0 14px 30px rgba(17,26,46,.12)" },
@@ -39,7 +40,7 @@ export default function DashboardCard({
               width: 42,
               height: 42,
               borderRadius: 2,
-              backgroundColor: gradient ? "rgba(255,255,255,.18)" : "#eef2fd",
+              backgroundColor: gradient ? "rgba(255,255,255,.18)" : "var(--bf-tint)",
               color: gradient ? "#ffffff" : color,
             }}
           >

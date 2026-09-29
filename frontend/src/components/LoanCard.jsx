@@ -40,7 +40,7 @@ export default function LoanCard({ loan, detailPath = "/loans" }) {
                 width: 44,
                 height: 44,
                 borderRadius: 2,
-                backgroundColor: "#eef2fd",
+                backgroundColor: "var(--bf-tint)",
                 color: "primary.main",
               }}
             >

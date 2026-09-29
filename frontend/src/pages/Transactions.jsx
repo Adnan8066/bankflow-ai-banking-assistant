@@ -16,6 +16,7 @@ import {
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import FilterAltOffIcon from "@mui/icons-material/FilterAltOff";
+import DownloadIcon from "@mui/icons-material/Download";
 
 import TransactionTable from "../components/TransactionTable.jsx";
 import { ErrorAlert, PageHeader } from "../components/Common.jsx";
@@ -41,6 +42,7 @@ export default function Transactions() {
   const [data, setData] = useState({ results: [], count: 0, summary: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   // Debounce the search box so we do not fire a request on every keystroke.
   useEffect(() => {
@@ -95,6 +97,34 @@ export default function Transactions() {
     setPage(0);
   };
 
+  const exportCsv = async () => {
+    setExporting(true);
+    setError("");
+    try {
+      const blob = await bankingService.exportTransactions({
+        search: debouncedSearch || undefined,
+        category: filters.category,
+        type: filters.type,
+        status: filters.status,
+        start_date: filters.start_date || undefined,
+        end_date: filters.end_date || undefined,
+        ordering: filters.ordering,
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "bankflow-transactions.csv";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError("The CSV could not be created. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const activeFilterCount = Object.entries(filters).filter(
     ([key, value]) => value && value !== "ALL" && key !== "ordering" && key !== "search"
   ).length;
@@ -105,14 +135,24 @@ export default function Transactions() {
         title="Transactions"
         subtitle="Search, filter and inspect every simulated movement in your demo account."
         action={
-          <Button
-            variant="outlined"
-            startIcon={<FilterAltOffIcon />}
-            onClick={resetFilters}
-            disabled={activeFilterCount === 0 && !filters.search}
-          >
-            Reset filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
-          </Button>
+          <Stack direction="row" spacing={1.5}>
+            <Button
+              variant="outlined"
+              startIcon={<FilterAltOffIcon />}
+              onClick={resetFilters}
+              disabled={activeFilterCount === 0 && !filters.search}
+            >
+              Reset filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<DownloadIcon />}
+              onClick={exportCsv}
+              disabled={exporting}
+            >
+              {exporting ? "Preparing..." : "Export CSV"}
+            </Button>
+          </Stack>
         }
       />
 

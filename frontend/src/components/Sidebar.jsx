@@ -108,7 +108,7 @@ function SidebarContent({ onNavigate }) {
               color: "text.secondary",
               "& .MuiListItemIcon-root": { color: "text.secondary", minWidth: 42 },
               "&.active": {
-                backgroundColor: "#eef2fd",
+                backgroundColor: "var(--bf-tint)",
                 color: "primary.main",
                 "& .MuiListItemIcon-root": { color: "primary.main" },
                 "& .MuiListItemText-primary": { fontWeight: 700 },
@@ -141,7 +141,7 @@ function SidebarContent({ onNavigate }) {
                   color: "text.secondary",
                   "& .MuiListItemIcon-root": { color: "text.secondary", minWidth: 42 },
                   "&.active": {
-                    backgroundColor: "#eef2fd",
+                    backgroundColor: "var(--bf-tint)",
                     color: "primary.main",
                     "& .MuiListItemIcon-root": { color: "primary.main" },
                     "& .MuiListItemText-primary": { fontWeight: 700 },
@@ -203,7 +203,7 @@ export default function Sidebar({ mobileOpen, onClose }) {
           "& .MuiDrawer-paper": {
             width: DRAWER_WIDTH,
             boxSizing: "border-box",
-            borderRight: "1px solid #e6e9f2",
+            borderRight: "1px solid var(--bf-border)",
           },
         }}
       >

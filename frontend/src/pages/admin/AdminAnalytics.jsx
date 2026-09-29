@@ -198,7 +198,7 @@ export default function AdminAnalytics() {
                 ["Demo transaction volume", formatCurrency(totals.demo_volume)],
               ].map(([label, value]) => (
                 <Grid item xs={12} sm={6} md={4} key={label}>
-                  <Box sx={{ p: 2, borderRadius: 2, backgroundColor: "#f8f9fd" }}>
+                  <Box sx={{ p: 2, borderRadius: 2, backgroundColor: "var(--bf-surface)" }}>
                     <Typography variant="caption" color="text.secondary">
                       {label}
                     </Typography>

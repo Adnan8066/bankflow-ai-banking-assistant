@@ -15,6 +15,7 @@ import {
   Typography,
 } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
+import LockResetIcon from "@mui/icons-material/LockReset";
 
 import { ErrorAlert, Loader, PageHeader, SectionCard } from "../components/Common.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -31,6 +32,13 @@ export default function Profile() {
   const [error, setError] = useState("");
   const [errors, setErrors] = useState({});
   const [snack, setSnack] = useState("");
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
+  const [passwordErrors, setPasswordErrors] = useState({});
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -73,6 +81,38 @@ export default function Profile() {
       setError(getErrorMessage(err));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePasswordChange = async (event) => {
+    event.preventDefault();
+    const nextErrors = {};
+    if (!passwordForm.current_password) {
+      nextErrors.current_password = "Enter your current password.";
+    }
+    if (!passwordForm.new_password) {
+      nextErrors.new_password = "Enter a new password.";
+    } else if (passwordForm.new_password.length < 8) {
+      nextErrors.new_password = "Use at least 8 characters.";
+    } else if (passwordForm.new_password === passwordForm.current_password) {
+      nextErrors.new_password = "Choose a password different from the current one.";
+    }
+    if (passwordForm.confirm_password !== passwordForm.new_password) {
+      nextErrors.confirm_password = "The two new passwords do not match.";
+    }
+    setPasswordErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+
+    setChangingPassword(true);
+    setError("");
+    try {
+      await authService.changePassword(passwordForm);
+      setPasswordForm({ current_password: "", new_password: "", confirm_password: "" });
+      setSnack("Password changed. Use the new password the next time you log in.");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -231,6 +271,68 @@ export default function Profile() {
             Profile pictures are shown as initials in this demo. Email addresses cannot be changed
             because they identify the login.
           </Alert>
+
+          <SectionCard
+            title="Change password"
+            subtitle="Confirm your current password, then choose a new one"
+            sx={{ mt: 2.5 }}
+          >
+            <form onSubmit={handlePasswordChange}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    type="password"
+                    label="Current password"
+                    autoComplete="current-password"
+                    value={passwordForm.current_password}
+                    onChange={(event) =>
+                      setPasswordForm({ ...passwordForm, current_password: event.target.value })
+                    }
+                    error={Boolean(passwordErrors.current_password)}
+                    helperText={passwordErrors.current_password}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    type="password"
+                    label="New password"
+                    autoComplete="new-password"
+                    value={passwordForm.new_password}
+                    onChange={(event) =>
+                      setPasswordForm({ ...passwordForm, new_password: event.target.value })
+                    }
+                    error={Boolean(passwordErrors.new_password)}
+                    helperText={passwordErrors.new_password || "At least 8 characters."}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    type="password"
+                    label="Confirm new password"
+                    autoComplete="new-password"
+                    value={passwordForm.confirm_password}
+                    onChange={(event) =>
+                      setPasswordForm({ ...passwordForm, confirm_password: event.target.value })
+                    }
+                    error={Boolean(passwordErrors.confirm_password)}
+                    helperText={passwordErrors.confirm_password}
+                  />
+                </Grid>
+              </Grid>
+              <Button
+                type="submit"
+                variant="outlined"
+                startIcon={<LockResetIcon />}
+                disabled={changingPassword}
+                sx={{ mt: 2 }}
+              >
+                {changingPassword ? "Updating..." : "Change password"}
+              </Button>
+            </form>
+          </SectionCard>
         </Grid>
       </Grid>
 

@@ -31,9 +31,9 @@ export default function ChatMessage({ message, sender = "ai", userName = "You", 
             borderRadius: 3,
             borderTopLeftRadius: isUser ? 12 : 4,
             borderTopRightRadius: isUser ? 4 : 12,
-            backgroundColor: isUser ? "primary.main" : "#ffffff",
+            backgroundColor: isUser ? "primary.main" : "background.paper",
             color: isUser ? "#ffffff" : "text.primary",
-            border: isUser ? "none" : "1px solid #e6e9f2",
+            border: isUser ? "none" : "1px solid var(--bf-border)",
             whiteSpace: "pre-line",
           }}
         >

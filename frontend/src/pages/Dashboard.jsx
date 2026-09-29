@@ -133,7 +133,7 @@ export default function Dashboard() {
             title="Available Balance"
             value={formatCurrency(data.balance)}
             icon={<AccountBalanceWalletIcon />}
-            caption="Across all active demo accounts"
+            caption={`Savings rate ${data.savings_rate}% this month`}
             gradient="linear-gradient(135deg, #1b3a8f 0%, #4361ee 100%)"
           />
         </Grid>
@@ -365,6 +365,25 @@ export default function Dashboard() {
             </Stack>
           </SectionCard>
         </Grid>
+
+        <Grid item xs={12}>
+          <SectionCard
+            title="Daily spending"
+            subtitle={`Last 14 days • average ${formatCurrency(data.average_daily_spend)} per day`}
+          >
+            <Box sx={{ height: 240 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={data.daily_spending}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--bf-border)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={0} angle={-25} dy={8} height={48} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `${value / 1000}k`} />
+                  <ChartTooltip formatter={(value) => formatCurrency(value)} />
+                  <Bar dataKey="amount" name="Spent" fill="#0ea5e9" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                </BarChart>
+              </ResponsiveContainer>
+            </Box>
+          </SectionCard>
+        </Grid>
       </Grid>
 
       {/* --------------------------------------------- transactions + alerts */}
@@ -404,7 +423,7 @@ export default function Dashboard() {
                           width: 40,
                           height: 40,
                           borderRadius: 2,
-                          backgroundColor: "#f2f5fd",
+                          backgroundColor: "var(--bf-tint)",
                           color: "primary.main",
                         }}
                       >
@@ -448,7 +467,7 @@ export default function Dashboard() {
                     direction="row"
                     spacing={1.5}
                     alignItems="flex-start"
-                    sx={{ p: 1.25, borderRadius: 2, backgroundColor: item.is_read ? "#fbfcff" : "#eef2fd" }}
+                    sx={{ p: 1.25, borderRadius: 2, backgroundColor: item.is_read ? "var(--bf-panel)" : "var(--bf-tint)" }}
                   >
                     <NotificationsActiveIcon fontSize="small" color="primary" />
                     <Box>
