@@ -8,6 +8,11 @@ modular AI banking assistant service.
 > is fictional. The app never moves real money, never contacts a real bank and must never be used
 > with real credentials or financial data.
 
+[![CI](https://github.com/Adnan8066/bankflow-ai-banking-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/Adnan8066/bankflow-ai-banking-assistant/actions/workflows/ci.yml)
+
+A one page summary of the project, its features and the decisions behind it is in
+[PROJECT_BRIEF.md](PROJECT_BRIEF.md).
+
 ---
 
 ## Get the code on your computer
@@ -43,18 +48,19 @@ the questions instead.
 
 - Register, login, logout with JWT (access + refresh, automatic refresh on 401)
 - Protected routes and role based access (customer vs bank employee)
-- Dashboard: available balance, monthly income, monthly expenses, active loans
-- Charts: income vs expense (6 months), spending by category, monthly transaction count, loan status
+- Dashboard: available balance, monthly income, monthly expenses, savings rate, active loans
+- Charts: income vs expense (6 months), spending by category, transaction count, loan status, daily spending
 - Account page with masked account number, type, status, IFSC-style demo identifier
 - Transactions: search, category filter, credit/debit filter, date range filter, sorting, pagination,
-  running balance and a transaction details page
+  running balance, CSV export and a transaction details page
 - Loans: list, status tabs, demo application form with live EMI preview, loan details with a
   12-instalment amortisation schedule and repayment progress
 - EMI calculator: sliders + inputs, EMI, total interest, total repayment, principal vs interest chart,
   server-side verification through the Django API
 - AI Banking Assistant: chat UI, chat history sidebar, suggested questions, intent-aware answers
 - Notifications with read / unread state and "mark all as read"
-- Profile: view and update name, phone, address, occupation, monthly income
+- Profile: view and update name, phone, address, occupation, monthly income, and change the password
+- Light and dark mode, remembered between visits
 
 **Bank employee / admin**
 
@@ -113,6 +119,8 @@ Request flow of an AI question:
 banking_app/
 ├── README.md
 ├── FULL_CODE.md               # every source file, headline-wise, copy-paste ready
+├── PROJECT_BRIEF.md           # one page summary for a portfolio or a team
+├── .github/workflows/ci.yml   # runs the Django tests and the frontend build
 │
 ├── backend/
 │   ├── manage.py
@@ -241,6 +249,7 @@ All customer endpoints require the header `Authorization: Bearer <access_token>`
 | POST | `/api/auth/register/` | Register a demo customer (creates an account automatically) |
 | POST | `/api/auth/login/` | Login, returns `access` + `refresh` |
 | POST | `/api/auth/refresh/` | Exchange a refresh token for a new access token |
+| POST | `/api/auth/change-password/` | Change the password after confirming the current one |
 
 **Customer**
 
@@ -251,6 +260,7 @@ All customer endpoints require the header `Authorization: Bearer <access_token>`
 | GET | `/api/account/` | Masked account details |
 | GET | `/api/transactions/` | List with `search`, `category`, `type`, `status`, `start_date`, `end_date`, `ordering`, `page` |
 | GET | `/api/transactions/<id>/` | Single transaction detail |
+| GET | `/api/transactions/export/` | Download the filtered transactions as a CSV file |
 | GET / POST | `/api/loans/` | List loans / submit a demo loan application |
 | GET | `/api/loans/<id>/` | Loan detail |
 | POST | `/api/emi/` | Server-side EMI calculation |
