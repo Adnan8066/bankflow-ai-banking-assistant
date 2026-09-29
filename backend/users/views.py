@@ -1,7 +1,9 @@
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.views import TokenRefreshView
 
 from .models import CustomerProfile
 from .serializers import (
@@ -67,3 +69,19 @@ class ChangePasswordView(APIView):
         return Response(
             {"message": "Password updated. Use the new password the next time you log in."}
         )
+
+
+class SafeTokenRefreshView(TokenRefreshView):
+    """Answer 401 when a refresh token points at an account that no longer exists.
+
+    Without this the token serializer raises DoesNotExist and the client sees a 500.
+    """
+
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except ObjectDoesNotExist:
+            return Response(
+                {"detail": "This session is no longer valid. Please log in again."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )

@@ -114,10 +114,16 @@ export default function Transactions() {
       const link = document.createElement("a");
       link.href = url;
       link.download = "bankflow-transactions.csv";
+      link.rel = "noopener";
+      link.style.display = "none";
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Releasing the blob immediately can cancel the download in some browsers,
+      // so the link and the object URL are cleaned up a moment later.
+      setTimeout(() => {
+        link.remove();
+        URL.revokeObjectURL(url);
+      }, 4000);
     } catch (err) {
       setError("The CSV could not be created. Please try again.");
     } finally {

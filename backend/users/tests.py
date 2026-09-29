@@ -1,6 +1,7 @@
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import User
 
@@ -122,4 +123,24 @@ class ChangePasswordTests(APITestCase):
             "new_password": "NewDemo@2026",
             "confirm_password": "NewDemo@2026",
         })
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class RefreshTokenTests(APITestCase):
+    """A token for a deleted account must answer 401, never a server error."""
+
+    def test_refresh_after_the_account_is_deleted_returns_401(self):
+        user = User.objects.create_user(
+            email="deleted@bankflow.com", password="Demo@12345", name="Deleted User"
+        )
+        refresh = RefreshToken.for_user(user)
+        user.delete()
+
+        response = self.client.post(reverse("token_refresh"), {"refresh": str(refresh)})
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("detail", response.data)
+
+    def test_refresh_with_a_nonsense_token_returns_401(self):
+        response = self.client.post(reverse("token_refresh"), {"refresh": "not-a-real-token"})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
