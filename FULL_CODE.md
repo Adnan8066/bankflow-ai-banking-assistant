@@ -1,7 +1,7 @@
 # BANKFLOW - AI BANKING ASSISTANT
 
 Complete source code of the project, headline-wise, in the order you create the files.
-Generated from 106 tracked files by tools/generate_full_code.py.
+Generated from 114 tracked files by tools/generate_full_code.py.
 
 > Demo application only. All banking data is fictional and no real money movement happens.
 
@@ -33,6 +33,109 @@ npm run dev
 ---
 
 ## Project files
+
+### PROJECT_BRIEF.md
+
+````markdown
+# BankFlow - AI Banking Assistant
+
+## What it is
+
+BankFlow is a complete, working banking application built as a portfolio and learning project. A
+customer can register, log in, see a dashboard, explore transactions, apply for a demo loan,
+calculate an EMI and chat with an AI assistant that answers questions about their own account. A
+second role, bank employee, can manage customers, review loans, read analytics and monitor what
+customers ask the assistant.
+
+Every account, transaction, loan and notification is fictional. The application never moves money
+and holds no real banking data, so it is safe to demonstrate to anyone.
+
+## Who it is for
+
+It is written for three audiences at once. A student or job seeker can show it as proof of full
+stack skills. A team can use it as a reference for how a React and Django project fits together.
+A beginner can follow the step by step guides in this repository and build the same application
+from an empty laptop.
+
+## What it does
+
+Customer side
+
+- Registration, login and logout with JWT access and refresh tokens, refreshed automatically when they expire
+- Dashboard with available balance, monthly income, monthly expenses, savings rate, active loans and five charts
+- Account page that shows the account number with the middle digits masked
+- Transactions with search, category, type and date filters, sorting, pagination, CSV export and a detail page
+- Loans with status tabs, a demo application form that previews the EMI as you type, and a repayment schedule
+- EMI calculator with sliders, a principal versus interest chart, and server side verification of the result
+- AI assistant that understands natural questions, answers from the customer's own data and saves the history
+- Notifications with read and unread state
+- Profile editing and password change
+- Light and dark mode that follows the user's choice on every screen
+
+Bank employee side
+
+- Portfolio dashboard: customers, accounts, transactions, loans, pending loans and demo transaction volume
+- Customer management with search and a customer 360 view
+- Transaction management across every customer with the same filters
+- Loan management with approve, activate and reject actions that notify the customer
+- Analytics with income and expense trends, category split, transaction counts and the active loan ratio
+- AI monitoring with the question log, intent breakdown and answer provider
+
+## Technology
+
+| Layer | Choice |
+| --- | --- |
+| Frontend | React 18, Vite 5, React Router 6, Material UI 5, Recharts, Axios |
+| Backend | Python, Django 5, Django REST Framework, SimpleJWT, django-cors-headers |
+| Database | SQLite for development, PostgreSQL by changing one environment variable |
+| Authentication | JWT access and refresh tokens, role based permissions |
+| AI | A modular service with deterministic rule based answers and an optional external model |
+| Quality | 32 Django tests, a GitHub Actions workflow, a Vite production build check |
+
+## How it is put together
+
+```
+React pages  ->  Axios service layer  ->  Django URLs  ->  Views  ->  Services  ->  Models  ->  Database
+     ^                                                                                              |
+     +---------------------------- JSON response, rendered as cards, tables and charts --------------+
+```
+
+The front end never talks to the database. It calls fixed API addresses, the backend decides what
+the signed in user is allowed to see, and one service layer holds every calculation so the
+dashboard, the charts, the EMI calculator and the AI assistant always agree with each other.
+
+The AI assistant follows the same discipline. It first detects the intent of the question, then
+retrieves the real demo numbers, and only then writes a sentence. If no external model is
+configured, the built in answers reply instead, so the feature always works offline.
+
+## Try it
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Customer | `mohammed@bankflow.com` | `Demo@12345` |
+| Bank employee | `admin@bankflow.com` | `Admin@12345` |
+
+The demo customer has a balance of 85,450 rupees, a monthly income of 45,000, monthly spending of
+18,450 and two active loans, so every screen has something meaningful to show.
+
+Run the backend on `http://127.0.0.1:8000` and the website on `http://localhost:5173`; the README
+has the exact commands for both.
+
+## What makes it worth looking at
+
+- The money maths lives in one file, so no two screens can disagree
+- Roles are enforced in the interface and again in the API, not just hidden in the menu
+- The assistant cannot invent a balance, because the numbers are retrieved before the sentence is written
+- Demo numbers are chosen to match the demo script exactly, so a live demonstration never surprises you
+- Dark mode, CSV export, password change and the daily spending insight were added after the first
+  version, showing how the project keeps growing
+
+## Where it could go next
+
+Streaming answers with tool calling, budgets and spend alerts, statement export to PDF, refresh
+token rotation with blacklisting, two factor authentication, Celery and Redis for scheduled
+summaries, WebSocket notifications, and a hosted deployment with Docker Compose.
+````
 
 ### README.md
 
@@ -2535,7 +2638,8 @@ import random
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
+from django.db import connection
 from django.utils import timezone
 
 from assistant.models import ChatMessage
@@ -2598,6 +2702,12 @@ class Command(BaseCommand):
                             help="Delete existing demo data before seeding.")
 
     def handle(self, *args, **options):
+        if not self.database_is_ready():
+            raise CommandError(
+                "The database tables do not exist yet. Run 'python manage.py migrate' first, "
+                "then run 'python manage.py seed_demo --flush' again."
+            )
+
         random.seed(7)
         if options["flush"]:
             ChatMessage.objects.all().delete()
@@ -2630,6 +2740,18 @@ class Command(BaseCommand):
             self.stdout.write(f"Customer : {customer['email']} / {DEMO_PASSWORD}")
 
     # ------------------------------------------------------------------ steps
+    def database_is_ready(self):
+        """Give a helpful message instead of a raw SQL error on a fresh machine."""
+        existing = set(connection.introspection.table_names())
+        required = {
+            "users_user",
+            "banking_account",
+            "banking_transaction",
+            "banking_loan",
+            "assistant_chatmessage",
+        }
+        return required.issubset(existing)
+
     def create_admin(self):
         admin, created = User.objects.get_or_create(
             email="admin@bankflow.com",
@@ -4400,21 +4522,25 @@ export default defineConfig({
   /* Surface tokens used by the components instead of hard coded light colours,
      so one attribute on <html> switches the whole application. */
   --bf-tint: #eef2fd;
-  --bf-surface: #f8f9fd;
+  --bf-surface: #f7f9fd;
   --bf-panel: #fbfcff;
   --bf-paper: #ffffff;
-  --bf-border: #e6e9f2;
-  --bf-glow: #e8eefc;
+  --bf-border: #e6eaf3;
+  --bf-glow: #e6ecfb;
+  --bf-header-rgb: 255, 255, 255;
+  --bf-shell: #f5f7fc;
 }
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --bf-tint: #202b47;
-  --bf-surface: #1a2237;
-  --bf-panel: #141b2c;
-  --bf-paper: #161d2f;
-  --bf-border: #28324a;
-  --bf-glow: #1b2540;
+  --bf-tint: #1d2740;
+  --bf-surface: #172033;
+  --bf-panel: #121a2b;
+  --bf-paper: #111a2c;
+  --bf-border: #232e46;
+  --bf-glow: #17223c;
+  --bf-header-rgb: 17, 26, 44;
+  --bf-shell: #080d19;
 }
 
 html,
@@ -4426,6 +4552,7 @@ body,
 
 body {
   font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bf-shell);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -4466,6 +4593,10 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
     transform: translateY(0);
   }
 }
+
+html {
+  scroll-behavior: smooth;
+}
 ```
 
 ### frontend/src/theme.js
@@ -4475,30 +4606,30 @@ import { createTheme } from "@mui/material/styles";
 
 /**
  * BankFlow design tokens.
- * One builder serves light and dark mode so every page stays consistent.
+ * A deep navy brand colour with a teal accent, tuned separately for light and dark mode.
  */
 const LIGHT = {
-  primary: { main: "#1b3a8f", light: "#4361ee", dark: "#122a68", contrastText: "#ffffff" },
-  secondary: { main: "#0ea5e9", contrastText: "#ffffff" },
+  primary: { main: "#16357f", light: "#3f74ff", dark: "#0d2258", contrastText: "#ffffff" },
+  secondary: { main: "#0f9d8f", contrastText: "#ffffff" },
   success: { main: "#16a34a" },
   error: { main: "#e11d48" },
   warning: { main: "#f59e0b" },
-  info: { main: "#6366f1" },
-  background: { default: "#f4f6fb", paper: "#ffffff" },
-  text: { primary: "#111a2e", secondary: "#5a6478" },
-  divider: "#e6e9f2",
+  info: { main: "#4f46e5" },
+  background: { default: "#f5f7fc", paper: "#ffffff" },
+  text: { primary: "#0e1729", secondary: "#5a6784" },
+  divider: "#e6eaf3",
 };
 
 const DARK = {
-  primary: { main: "#7b96ff", light: "#a9baff", dark: "#5a76e6", contrastText: "#0b1020" },
-  secondary: { main: "#4fc3f7", contrastText: "#0b1020" },
+  primary: { main: "#7f9dff", light: "#a8bcff", dark: "#5677e8", contrastText: "#071022" },
+  secondary: { main: "#2dd4bf", contrastText: "#04211d" },
   success: { main: "#4ade80" },
   error: { main: "#fb7185" },
   warning: { main: "#fbbf24" },
-  info: { main: "#8b95f8" },
-  background: { default: "#0d1220", paper: "#161d2f" },
-  text: { primary: "#e9edf9", secondary: "#9fabc4" },
-  divider: "#28324a",
+  info: { main: "#a5b4fc" },
+  background: { default: "#080d19", paper: "#111a2c" },
+  text: { primary: "#e9eefb", secondary: "#98a5c0" },
+  divider: "#232e46",
 };
 
 export function createAppTheme(mode = "light") {
@@ -4507,15 +4638,16 @@ export function createAppTheme(mode = "light") {
 
   return createTheme({
     palette: { mode, ...palette },
-    shape: { borderRadius: 12 },
+    shape: { borderRadius: 14 },
     typography: {
       fontFamily: '"Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-      h1: { fontWeight: 800, letterSpacing: "-0.02em" },
-      h2: { fontWeight: 800, letterSpacing: "-0.02em" },
-      h3: { fontWeight: 700 },
-      h4: { fontWeight: 700 },
-      h5: { fontWeight: 700 },
+      h1: { fontWeight: 800, letterSpacing: "-0.025em" },
+      h2: { fontWeight: 800, letterSpacing: "-0.025em" },
+      h3: { fontWeight: 700, letterSpacing: "-0.02em" },
+      h4: { fontWeight: 700, letterSpacing: "-0.015em" },
+      h5: { fontWeight: 700, letterSpacing: "-0.01em" },
       h6: { fontWeight: 700 },
+      subtitle1: { fontWeight: 600 },
       button: { textTransform: "none", fontWeight: 600 },
     },
     components: {
@@ -4527,17 +4659,25 @@ export function createAppTheme(mode = "light") {
         styleOverrides: {
           root: {
             backgroundImage: "none",
+            borderRadius: 16,
             border: "1px solid",
             borderColor: palette.divider,
             boxShadow: isDark
               ? "none"
-              : "0 1px 2px rgba(17, 26, 46, 0.04), 0 8px 24px rgba(17, 26, 46, 0.04)",
+              : "0 1px 2px rgba(16, 28, 58, 0.04), 0 12px 28px rgba(16, 28, 58, 0.05)",
           },
         },
       },
       MuiButton: {
         defaultProps: { disableElevation: true },
-        styleOverrides: { root: { borderRadius: 10, paddingInline: 18 } },
+        styleOverrides: {
+          root: { borderRadius: 10, paddingInline: 18, fontWeight: 600 },
+          containedPrimary: {
+            background: isDark
+              ? undefined
+              : "linear-gradient(135deg, #16357f 0%, #2b53ba 100%)",
+          },
+        },
       },
       MuiChip: { styleOverrides: { root: { fontWeight: 600 } } },
       MuiTableCell: {
@@ -4546,10 +4686,21 @@ export function createAppTheme(mode = "light") {
             fontWeight: 700,
             color: palette.text.secondary,
             backgroundColor: "var(--bf-surface)",
+            borderBottomColor: palette.divider,
+            letterSpacing: "0.02em",
           },
+          body: { borderBottomColor: palette.divider },
         },
       },
       MuiAppBar: { defaultProps: { elevation: 0, color: "inherit" } },
+      MuiDrawer: {
+        styleOverrides: { paper: { backgroundImage: "none" } },
+      },
+      MuiTooltip: {
+        styleOverrides: {
+          tooltip: { backgroundColor: isDark ? "#1c2740" : "#0e1729", fontSize: 12, borderRadius: 8 },
+        },
+      },
     },
   });
 }
@@ -4818,7 +4969,9 @@ const bankingService = {
       .get("/transactions/export/", { params, responseType: "blob" })
       .then((r) => r.data),
 
-  getLoans: (params = {}) => api.get("/loans/", { params }).then((r) => r.data),
+  // The API paginates loan lists, so the page only needs the array of loans back.
+  getLoans: (params = {}) =>
+    api.get("/loans/", { params }).then((r) => r.data.results ?? r.data),
   getLoan: (id) => api.get(`/loans/${id}/`).then((r) => r.data),
   applyLoan: (payload) => api.post("/loans/", payload).then((r) => r.data),
 
@@ -5112,19 +5265,29 @@ import { Outlet } from "react-router-dom";
 
 import Navbar from "./Navbar.jsx";
 import Sidebar, { DRAWER_WIDTH } from "./Sidebar.jsx";
+import SiteFooter from "./SiteFooter.jsx";
 
-/** Shell used by every private page: responsive sidebar + app bar + content. */
+/** Shell used by every private page: responsive sidebar, header, content and footer. */
 export default function AppLayout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh", backgroundColor: "background.default" }}>
       <Sidebar mobileOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
-      <Box sx={{ flexGrow: 1, width: { md: `calc(100% - ${DRAWER_WIDTH}px)` } }}>
+      <Box
+        sx={{
+          flexGrow: 1,
+          display: "flex",
+          flexDirection: "column",
+          width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
+          minHeight: "100vh",
+        }}
+      >
         <Navbar onMenuClick={() => setMobileOpen(true)} />
-        <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 }, px: { xs: 2, md: 3 } }}>
+        <Container maxWidth="xl" sx={{ py: { xs: 2, md: 3 }, px: { xs: 2, md: 3 }, flexGrow: 1 }}>
           <Outlet />
         </Container>
+        <SiteFooter variant="slim" />
       </Box>
     </Box>
   );
@@ -5140,9 +5303,11 @@ import {
   Avatar,
   Badge,
   Box,
+  Button,
   Chip,
   Divider,
   IconButton,
+  ListItemIcon,
   Menu,
   MenuItem,
   Stack,
@@ -5157,6 +5322,8 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
@@ -5164,23 +5331,24 @@ import { useColorMode } from "../context/ColorModeContext.jsx";
 import bankingService from "../services/bankingService";
 import { initials } from "../utils/formatCurrency.js";
 
-const TITLES = {
-  "/dashboard": "Dashboard",
-  "/account": "My Account",
-  "/transactions": "Transactions",
-  "/loans": "Loans",
-  "/emi-calculator": "EMI Calculator",
-  "/assistant": "AI Banking Assistant",
-  "/notifications": "Notifications",
-  "/profile": "Profile",
-  "/admin": "Admin Dashboard",
-  "/admin/customers": "Customer Management",
-  "/admin/transactions": "Transaction Management",
-  "/admin/loans": "Loan Management",
-  "/admin/analytics": "Analytics",
-  "/admin/ai-monitor": "AI Assistant Monitoring",
+const PAGES = {
+  "/dashboard": { title: "Dashboard", subtitle: "Balances, spending and loans at a glance" },
+  "/account": { title: "My Account", subtitle: "Simulated account details" },
+  "/transactions": { title: "Transactions", subtitle: "Search, filter and export your activity" },
+  "/loans": { title: "Loans", subtitle: "Applications, EMIs and outstanding amounts" },
+  "/emi-calculator": { title: "EMI Calculator", subtitle: "Plan an instalment before you apply" },
+  "/assistant": { title: "AI Assistant", subtitle: "Ask about your own demo data" },
+  "/notifications": { title: "Notifications", subtitle: "Simulated banking alerts" },
+  "/profile": { title: "Profile", subtitle: "Your details and password" },
+  "/admin": { title: "Admin Dashboard", subtitle: "Portfolio overview for bank employees" },
+  "/admin/customers": { title: "Customer Management", subtitle: "Search and open a customer 360 view" },
+  "/admin/transactions": { title: "Transaction Management", subtitle: "Every simulated transaction" },
+  "/admin/loans": { title: "Loan Management", subtitle: "Review and decide on applications" },
+  "/admin/analytics": { title: "Analytics", subtitle: "Portfolio trends and totals" },
+  "/admin/ai-monitor": { title: "AI Monitoring", subtitle: "What customers ask the assistant" },
 };
 
+/** Application header: page context on the left, quick actions and the account menu on the right. */
 export default function Navbar({ onMenuClick }) {
   const { user, isAdmin, logout } = useAuth();
   const { mode, toggleColorMode } = useColorMode();
@@ -5188,15 +5356,23 @@ export default function Navbar({ onMenuClick }) {
   const location = useLocation();
   const [anchorEl, setAnchorEl] = useState(null);
   const [unread, setUnread] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+
+  const page = PAGES[location.pathname] || { title: "BankFlow", subtitle: "AI Banking Assistant" };
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
         const notifications = await bankingService.getNotifications();
-        if (!cancelled) {
-          setUnread(notifications.filter((item) => !item.is_read).length);
-        }
+        if (!cancelled) setUnread(notifications.filter((item) => !item.is_read).length);
       } catch {
         if (!cancelled) setUnread(0);
       }
@@ -5209,38 +5385,56 @@ export default function Navbar({ onMenuClick }) {
     };
   }, [location.pathname]);
 
-  const title = TITLES[location.pathname] || "BankFlow";
-
   const handleLogout = () => {
     setAnchorEl(null);
     logout();
     navigate("/login");
   };
 
+  const closeMenu = () => setAnchorEl(null);
+
   return (
     <AppBar
       position="sticky"
       sx={{
-        backgroundColor: "background.paper",
-        backdropFilter: "blur(8px)",
+        backgroundColor: "rgba(var(--bf-header-rgb), 0.92)",
+        backdropFilter: "blur(14px)",
         borderBottom: "1px solid",
         borderColor: "divider",
+        boxShadow: scrolled ? "0 10px 30px rgba(11, 25, 60, 0.08)" : "none",
+        transition: "box-shadow .25s ease",
       }}
     >
-      <Toolbar sx={{ gap: 1.5 }}>
-        <IconButton edge="start" onClick={onMenuClick} sx={{ display: { md: "none" } }}>
+      <Toolbar sx={{ gap: 1.5, minHeight: { xs: 64, md: 72 } }}>
+        <IconButton edge="start" onClick={onMenuClick} sx={{ display: { md: "none" } }} aria-label="Open navigation">
           <MenuIcon />
         </IconButton>
 
-        <Typography variant="h6" sx={{ flexGrow: 1, fontSize: { xs: 16, md: 18 } }}>
-          {title}
-        </Typography>
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="caption" sx={{ color: "text.secondary", letterSpacing: "0.08em", textTransform: "uppercase", fontSize: 10 }}>
+            BankFlow
+          </Typography>
+          <Typography variant="h6" noWrap sx={{ fontSize: { xs: 16, md: 19 }, lineHeight: 1.2 }}>
+            {page.title}
+          </Typography>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            noWrap
+            sx={{ display: { xs: "none", sm: "block" } }}
+          >
+            {page.subtitle}
+          </Typography>
+        </Box>
 
-        <Tooltip title="Ask BankFlow AI">
-          <IconButton onClick={() => navigate("/assistant")} sx={{ display: { xs: "none", sm: "inline-flex" } }}>
-            <SmartToyIcon />
-          </IconButton>
-        </Tooltip>
+        <Button
+          variant="outlined"
+          startIcon={<SmartToyIcon fontSize="small" />}
+          onClick={() => navigate("/assistant")}
+          sx={{ display: { xs: "none", md: "inline-flex" }, borderRadius: 999, px: 2 }}
+        >
+          Ask AI
+        </Button>
 
         <Tooltip title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
           <IconButton onClick={toggleColorMode} aria-label="Toggle dark mode">
@@ -5249,53 +5443,95 @@ export default function Navbar({ onMenuClick }) {
         </Tooltip>
 
         <Tooltip title="Notifications">
-          <IconButton onClick={() => navigate("/notifications")}>
+          <IconButton onClick={() => navigate("/notifications")} aria-label="Notifications">
             <Badge color="error" badgeContent={unread} max={9}>
               <NotificationsNoneIcon />
             </Badge>
           </IconButton>
         </Tooltip>
 
-        <Divider orientation="vertical" flexItem sx={{ my: 1.5 }} />
+        <Divider orientation="vertical" flexItem sx={{ my: 2, display: { xs: "none", sm: "block" } }} />
 
-        <Stack
-          direction="row"
-          spacing={1}
-          alignItems="center"
+        <Button
           onClick={(event) => setAnchorEl(event.currentTarget)}
-          sx={{ cursor: "pointer", borderRadius: 2, px: 0.5, py: 0.5 }}
+          endIcon={<KeyboardArrowDownIcon fontSize="small" />}
+          sx={{ px: 1, borderRadius: 2, minWidth: 0, color: "text.primary" }}
         >
-          <Avatar sx={{ width: 34, height: 34, bgcolor: "primary.main", fontSize: 13 }}>
-            {initials(user?.name || "BF")}
-          </Avatar>
-          <Box sx={{ display: { xs: "none", md: "block" } }}>
-            <Typography variant="subtitle2" lineHeight={1.2}>
-              {user?.name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {isAdmin ? "Bank Employee" : "Customer"}
-            </Typography>
-          </Box>
-        </Stack>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Avatar sx={{ width: 34, height: 34, background: "linear-gradient(135deg, #16357f 0%, #3f74ff 100%)", fontSize: 13 }}>
+              {initials(user?.name || "BF")}
+            </Avatar>
+            <Box sx={{ display: { xs: "none", md: "block" }, textAlign: "left" }}>
+              <Typography variant="subtitle2" lineHeight={1.2}>
+                {user?.name}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {isAdmin ? "Bank Employee" : "Customer"}
+              </Typography>
+            </Box>
+          </Stack>
+        </Button>
 
-        <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-          <MenuItem disabled sx={{ opacity: "1 !important" }}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="body2">{user?.email}</Typography>
-              <Chip size="small" label={isAdmin ? "ADMIN" : "CUSTOMER"} color="primary" />
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={closeMenu}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
+          slotProps={{ paper: { sx: { mt: 1, minWidth: 260, borderRadius: 3, border: "1px solid", borderColor: "divider" } } }}
+        >
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <Typography variant="subtitle2">{user?.name}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {user?.email}
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+              <Chip size="small" color="primary" label={isAdmin ? "BANK EMPLOYEE" : "CUSTOMER"} />
+              <Chip size="small" variant="outlined" label="Demo data" />
             </Stack>
-          </MenuItem>
+          </Box>
           <Divider />
           <MenuItem
             onClick={() => {
-              setAnchorEl(null);
+              closeMenu();
               navigate("/profile");
             }}
           >
-            <PersonOutlineIcon fontSize="small" style={{ marginRight: 10 }} /> My profile
+            <ListItemIcon>
+              <PersonOutlineIcon fontSize="small" />
+            </ListItemIcon>
+            My profile
           </MenuItem>
-          <MenuItem onClick={handleLogout}>
-            <LogoutIcon fontSize="small" style={{ marginRight: 10 }} /> Logout
+          {isAdmin && (
+            <MenuItem
+              onClick={() => {
+                closeMenu();
+                navigate("/admin");
+              }}
+            >
+              <ListItemIcon>
+                <AdminPanelSettingsOutlinedIcon fontSize="small" />
+              </ListItemIcon>
+              Bank employee area
+            </MenuItem>
+          )}
+          <MenuItem
+            onClick={() => {
+              closeMenu();
+              toggleColorMode();
+            }}
+          >
+            <ListItemIcon>
+              {mode === "dark" ? <Brightness7Icon fontSize="small" /> : <Brightness4Icon fontSize="small" />}
+            </ListItemIcon>
+            {mode === "dark" ? "Light mode" : "Dark mode"}
+          </MenuItem>
+          <Divider />
+          <MenuItem onClick={handleLogout} sx={{ color: "error.main" }}>
+            <ListItemIcon>
+              <LogoutIcon fontSize="small" sx={{ color: "error.main" }} />
+            </ListItemIcon>
+            Sign out
           </MenuItem>
         </Menu>
       </Toolbar>
@@ -5310,6 +5546,7 @@ export default function Navbar({ onMenuClick }) {
 import {
   Avatar,
   Box,
+  Chip,
   Divider,
   Drawer,
   List,
@@ -5318,6 +5555,7 @@ import {
   ListItemText,
   Stack,
   Toolbar,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -5331,14 +5569,16 @@ import PersonIcon from "@mui/icons-material/Person";
 import GroupIcon from "@mui/icons-material/Group";
 import InsightsIcon from "@mui/icons-material/Insights";
 import MonitorHeartIcon from "@mui/icons-material/MonitorHeart";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import LogoutIcon from "@mui/icons-material/Logout";
+import GitHubIcon from "@mui/icons-material/GitHub";
 import { NavLink, useNavigate } from "react-router-dom";
 
+import { BRAND } from "../branding.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { initials } from "../utils/formatCurrency.js";
+import BrandLogo from "./BrandLogo.jsx";
 
-export const DRAWER_WIDTH = 252;
+export const DRAWER_WIDTH = 264;
 
 const CUSTOMER_LINKS = [
   { to: "/dashboard", label: "Dashboard", icon: <DashboardIcon /> },
@@ -5352,13 +5592,53 @@ const CUSTOMER_LINKS = [
 ];
 
 const ADMIN_LINKS = [
-  { to: "/admin", label: "Admin Dashboard", icon: <DashboardIcon /> },
+  { to: "/admin", label: "Admin Dashboard", icon: <DashboardIcon />, end: true },
   { to: "/admin/customers", label: "Customers", icon: <GroupIcon /> },
   { to: "/admin/transactions", label: "Transactions", icon: <ReceiptLongIcon /> },
   { to: "/admin/loans", label: "Loan Management", icon: <RequestQuoteIcon /> },
   { to: "/admin/analytics", label: "Analytics", icon: <InsightsIcon /> },
   { to: "/admin/ai-monitor", label: "AI Monitoring", icon: <MonitorHeartIcon /> },
 ];
+
+const itemSx = {
+  borderRadius: 2,
+  mb: 0.5,
+  pl: 1.75,
+  color: "text.secondary",
+  position: "relative",
+  "& .MuiListItemIcon-root": { color: "text.secondary", minWidth: 42 },
+  "&::before": {
+    content: '""',
+    position: "absolute",
+    left: 0,
+    top: 8,
+    bottom: 8,
+    width: 3,
+    borderRadius: 3,
+    backgroundColor: "primary.main",
+    opacity: 0,
+    transition: "opacity .18s ease",
+  },
+  "&:hover": { backgroundColor: "var(--bf-tint)" },
+  "&.active": {
+    backgroundColor: "var(--bf-tint)",
+    color: "primary.main",
+    "&::before": { opacity: 1 },
+    "& .MuiListItemIcon-root": { color: "primary.main" },
+    "& .MuiListItemText-primary": { fontWeight: 700 },
+  },
+};
+
+function SectionLabel({ children }) {
+  return (
+    <Typography
+      variant="overline"
+      sx={{ px: 2, mt: 2, mb: 0.5, display: "block", color: "text.secondary", fontWeight: 700, fontSize: 10.5, letterSpacing: "0.09em" }}
+    >
+      {children}
+    </Typography>
+  );
+}
 
 function SidebarContent({ onNavigate }) {
   const { user, isAdmin, logout } = useAuth();
@@ -5371,59 +5651,15 @@ function SidebarContent({ onNavigate }) {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Toolbar sx={{ px: 2 }}>
-        <Stack direction="row" spacing={1.25} alignItems="center">
-          <Box
-            sx={{
-              display: "grid",
-              placeItems: "center",
-              width: 36,
-              height: 36,
-              borderRadius: 2,
-              backgroundColor: "primary.main",
-              color: "#fff",
-            }}
-          >
-            <AccountBalanceWalletIcon fontSize="small" />
-          </Box>
-          <Box>
-            <Typography variant="subtitle1" fontWeight={800} lineHeight={1.1}>
-              BankFlow
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              AI Banking Assistant
-            </Typography>
-          </Box>
-        </Stack>
+      <Toolbar sx={{ px: 2, minHeight: { xs: 64, md: 72 } }}>
+        <BrandLogo size={36} onClick={() => navigate("/dashboard")} />
       </Toolbar>
       <Divider />
 
-      <List sx={{ px: 1.5, py: 2, flexGrow: 1 }}>
-        <Typography
-          variant="overline"
-          sx={{ px: 1.5, color: "text.secondary", fontWeight: 700 }}
-        >
-          Banking
-        </Typography>
+      <List sx={{ px: 1.25, py: 1.5, flexGrow: 1, overflowY: "auto" }}>
+        <SectionLabel>Banking</SectionLabel>
         {CUSTOMER_LINKS.map((link) => (
-          <ListItemButton
-            key={link.to}
-            component={NavLink}
-            to={link.to}
-            onClick={onNavigate}
-            sx={{
-              borderRadius: 2,
-              mb: 0.5,
-              color: "text.secondary",
-              "& .MuiListItemIcon-root": { color: "text.secondary", minWidth: 42 },
-              "&.active": {
-                backgroundColor: "var(--bf-tint)",
-                color: "primary.main",
-                "& .MuiListItemIcon-root": { color: "primary.main" },
-                "& .MuiListItemText-primary": { fontWeight: 700 },
-              },
-            }}
-          >
+          <ListItemButton key={link.to} component={NavLink} to={link.to} onClick={onNavigate} sx={itemSx}>
             <ListItemIcon>{link.icon}</ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: 14 }} primary={link.label} />
           </ListItemButton>
@@ -5431,31 +5667,15 @@ function SidebarContent({ onNavigate }) {
 
         {isAdmin && (
           <>
-            <Typography
-              variant="overline"
-              sx={{ px: 1.5, mt: 2, display: "block", color: "text.secondary", fontWeight: 700 }}
-            >
-              Bank Employee
-            </Typography>
+            <SectionLabel>Bank employee</SectionLabel>
             {ADMIN_LINKS.map((link) => (
               <ListItemButton
                 key={link.to}
                 component={NavLink}
                 to={link.to}
-                end={link.to === "/admin"}
+                end={link.end}
                 onClick={onNavigate}
-                sx={{
-                  borderRadius: 2,
-                  mb: 0.5,
-                  color: "text.secondary",
-                  "& .MuiListItemIcon-root": { color: "text.secondary", minWidth: 42 },
-                  "&.active": {
-                    backgroundColor: "var(--bf-tint)",
-                    color: "primary.main",
-                    "& .MuiListItemIcon-root": { color: "primary.main" },
-                    "& .MuiListItemText-primary": { fontWeight: 700 },
-                  },
-                }}
+                sx={itemSx}
               >
                 <ListItemIcon>{link.icon}</ListItemIcon>
                 <ListItemText primaryTypographyProps={{ fontSize: 14 }} primary={link.label} />
@@ -5465,25 +5685,44 @@ function SidebarContent({ onNavigate }) {
         )}
       </List>
 
+      <Box sx={{ px: 1.5, pb: 1 }}>
+        <Chip
+          size="small"
+          variant="outlined"
+          label="Demo data only"
+          sx={{ width: "100%", justifyContent: "flex-start" }}
+        />
+      </Box>
+
       <Divider />
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 2 }}>
-        <Avatar sx={{ bgcolor: "primary.main", width: 38, height: 38, fontSize: 14 }}>
+      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ p: 1.75 }}>
+        <Avatar sx={{ width: 38, height: 38, fontSize: 14, background: BRAND.gradient }}>
           {initials(user?.name || "BF")}
         </Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography variant="subtitle2" noWrap>
             {user?.name || "Demo Customer"}
           </Typography>
-          <Typography variant="caption" color="text.secondary" noWrap>
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
             {user?.email}
           </Typography>
         </Box>
-        <ListItemButton
-          onClick={handleLogout}
-          sx={{ borderRadius: 2, minWidth: 40, justifyContent: "center", p: 1 }}
-        >
-          <LogoutIcon fontSize="small" />
-        </ListItemButton>
+        <Tooltip title="Source code">
+          <ListItemButton
+            component="a"
+            href={BRAND.github}
+            target="_blank"
+            rel="noreferrer"
+            sx={{ borderRadius: 2, minWidth: 36, justifyContent: "center", p: 0.75 }}
+          >
+            <GitHubIcon fontSize="small" />
+          </ListItemButton>
+        </Tooltip>
+        <Tooltip title="Sign out">
+          <ListItemButton onClick={handleLogout} sx={{ borderRadius: 2, minWidth: 36, justifyContent: "center", p: 0.75 }}>
+            <LogoutIcon fontSize="small" />
+          </ListItemButton>
+        </Tooltip>
       </Stack>
     </Box>
   );
@@ -5512,7 +5751,9 @@ export default function Sidebar({ mobileOpen, onClose }) {
           "& .MuiDrawer-paper": {
             width: DRAWER_WIDTH,
             boxSizing: "border-box",
-            borderRight: "1px solid var(--bf-border)",
+            borderRight: "1px solid",
+            borderColor: "divider",
+            backgroundColor: "background.paper",
           },
         }}
       >
@@ -6117,7 +6358,6 @@ export function SectionCard({ title, subtitle, action, children, sx }) {
 
 ```jsx
 import {
-  AppBar,
   Box,
   Button,
   Card,
@@ -6126,9 +6366,7 @@ import {
   Container,
   Divider,
   Grid,
-  IconButton,
   Stack,
-  Toolbar,
   Typography,
 } from "@mui/material";
 import {
@@ -6143,19 +6381,13 @@ import {
   FiUserCheck,
   FiZap,
 } from "react-icons/fi";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
-
-const NAV_LINKS = [
-  { label: "Home", href: "#home" },
-  { label: "Features", href: "#features" },
-  { label: "AI Assistant", href: "#assistant" },
-  { label: "Security", href: "#security" },
-  { label: "About", href: "#about" },
-];
+import { BRAND } from "../branding.js";
+import PublicHeader from "../components/PublicHeader.jsx";
+import SiteFooter from "../components/SiteFooter.jsx";
 
 const FEATURES = [
   {
@@ -6207,77 +6439,32 @@ export default function Landing() {
 
   return (
     <Box id="home" sx={{ backgroundColor: "#ffffff" }}>
-      {/* ------------------------------------------------------------ navbar */}
-      <AppBar
-        position="sticky"
-        sx={{
-          backgroundColor: "rgba(255,255,255,.94)",
-          backdropFilter: "blur(10px)",
-          borderBottom: "1px solid #e6e9f2",
-        }}
-      >
-        <Container maxWidth="lg">
-          <Toolbar disableGutters sx={{ gap: 2 }}>
-            <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flexGrow: 1 }}>
-              <Box
-                sx={{
-                  display: "grid",
-                  placeItems: "center",
-                  width: 38,
-                  height: 38,
-                  borderRadius: 2,
-                  backgroundColor: "primary.main",
-                  color: "#fff",
-                }}
-              >
-                <AccountBalanceWalletIcon fontSize="small" />
-              </Box>
-              <Box>
-                <Typography variant="subtitle1" fontWeight={800} lineHeight={1.1}>
-                  BankFlow
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  AI Banking Assistant
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Stack direction="row" spacing={3} sx={{ display: { xs: "none", md: "flex" } }}>
-              {NAV_LINKS.map((link) => (
-                <Typography
-                  key={link.label}
-                  component="a"
-                  href={link.href}
-                  variant="body2"
-                  sx={{
-                    color: "text.secondary",
-                    fontWeight: 600,
-                    "&:hover": { color: "primary.main" },
-                  }}
-                >
-                  {link.label}
-                </Typography>
-              ))}
-            </Stack>
-
-            <Button component={RouterLink} to="/login" sx={{ display: { xs: "none", sm: "flex" } }}>
-              Login
-            </Button>
-            <Button variant="contained" onClick={() => (isAuthenticated ? goToApp() : navigate("/register"))}>
-              {isAuthenticated ? "Open App" : "Register"}
-            </Button>
-          </Toolbar>
-        </Container>
-      </AppBar>
+      <PublicHeader />
 
       {/* -------------------------------------------------------------- hero */}
       <Box
         sx={{
+          position: "relative",
+          overflow: "hidden",
           background:
-            "radial-gradient(1200px 520px at 15% 0%, #e8eefc 0%, #ffffff 60%), linear-gradient(180deg, #fbfcff 0%, #ffffff 100%)",
+            "radial-gradient(1100px 480px at 12% -5%, var(--bf-glow) 0%, var(--bf-shell) 58%), linear-gradient(180deg, var(--bf-panel) 0%, var(--bf-shell) 100%)",
           py: { xs: 6, md: 10 },
         }}
       >
+        <Box
+          aria-hidden
+          sx={{
+            position: "absolute",
+            top: -140,
+            right: -120,
+            width: 420,
+            height: 420,
+            borderRadius: "50%",
+            background: BRAND.gradient,
+            opacity: 0.12,
+            filter: "blur(10px)",
+          }}
+        />
         <Container maxWidth="lg">
           <Grid container spacing={6} alignItems="center">
             <Grid item xs={12} md={6}>
@@ -6456,14 +6643,14 @@ export default function Landing() {
                   "Explain EMI / KYC / credit score",
                 ].map((q) => (
                   <Stack key={q} direction="row" spacing={1.25} alignItems="center">
-                    <FiCheckCircle color="#1b3a8f" />
+                    <FiCheckCircle color="#16357f" />
                     <Typography variant="body2">{q}</Typography>
                   </Stack>
                 ))}
               </Stack>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Card sx={{ backgroundColor: "#0f1d3d", color: "#fff", borderRadius: 4 }}>
+              <Card sx={{ backgroundColor: "#0b1531", color: "#fff", borderRadius: 4 }}>
                 <CardContent sx={{ p: 3 }}>
                   <Typography variant="h6" sx={{ mb: 2 }}>
                     Example AI session
@@ -6573,37 +6760,7 @@ export default function Landing() {
         </Container>
       </Box>
 
-      {/* ------------------------------------------------------------ footer */}
-      <Box sx={{ backgroundColor: "#0f1d3d", color: "#fff", py: 4 }}>
-        <Container maxWidth="lg">
-          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
-            <Stack direction="row" spacing={1.25} alignItems="center">
-              <IconButton size="small" sx={{ color: "#fff" }}>
-                <AccountBalanceWalletIcon fontSize="small" />
-              </IconButton>
-              <Typography variant="subtitle2">BankFlow - AI Banking Assistant (demo)</Typography>
-            </Stack>
-            <Stack direction="row" spacing={3} sx={{ flexWrap: "wrap" }}>
-              {NAV_LINKS.map((link) => (
-                <Typography
-                  key={link.label}
-                  component="a"
-                  href={link.href}
-                  variant="body2"
-                  sx={{ color: "rgba(255,255,255,.75)", "&:hover": { color: "#fff" } }}
-                >
-                  {link.label}
-                </Typography>
-              ))}
-            </Stack>
-          </Stack>
-          <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,.15)" }} />
-          <Typography variant="caption" sx={{ color: "rgba(255,255,255,.6)" }}>
-            © {new Date().getFullYear()} BankFlow demo. All data is simulated and fictional. Built
-            with React and Django REST Framework.
-          </Typography>
-        </Container>
-      </Box>
+      <SiteFooter />
     </Box>
   );
 }
@@ -7211,7 +7368,7 @@ export default function Dashboard() {
             value={formatCurrency(data.balance)}
             icon={<AccountBalanceWalletIcon />}
             caption={`Savings rate ${data.savings_rate}% this month`}
-            gradient="linear-gradient(135deg, #1b3a8f 0%, #4361ee 100%)"
+            gradient="linear-gradient(135deg, #16357f 0%, #3f74ff 100%)"
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
@@ -7395,7 +7552,7 @@ export default function Dashboard() {
                   <Bar
                     dataKey="transactions"
                     name="Transactions"
-                    fill="#4361ee"
+                    fill="#3f74ff"
                     radius={[6, 6, 0, 0]}
                     maxBarSize={44}
                   />
@@ -7669,7 +7826,7 @@ export default function Account() {
             <Card
               sx={{
                 color: "#fff",
-                background: "linear-gradient(135deg, #12295e 0%, #1b3a8f 55%, #4361ee 100%)",
+                background: "linear-gradient(135deg, #0b1f52 0%, #16357f 55%, #3f74ff 100%)",
                 borderRadius: 4,
               }}
             >
@@ -8168,7 +8325,7 @@ export default function TransactionDetails() {
               borderRadius: 4,
               background: isCredit
                 ? "linear-gradient(135deg, #0f5132 0%, #16a34a 100%)"
-                : "linear-gradient(135deg, #12295e 0%, #1b3a8f 100%)",
+                : "linear-gradient(135deg, #0b1f52 0%, #16357f 100%)",
               color: "#fff",
             }}
           >
@@ -8673,7 +8830,7 @@ export default function LoanDetails() {
           <Card
             sx={{
               color: "#fff",
-              background: "linear-gradient(135deg, #12295e 0%, #1b3a8f 60%, #4361ee 100%)",
+              background: "linear-gradient(135deg, #0b1f52 0%, #16357f 60%, #3f74ff 100%)",
               borderRadius: 4,
             }}
           >
@@ -8857,7 +9014,7 @@ export default function EMICalculator() {
   );
 
   const donutData = [
-    { name: "Principal", value: result.principal, color: "#1b3a8f" },
+    { name: "Principal", value: result.principal, color: "#16357f" },
     { name: "Total interest", value: result.total_interest, color: "#0ea5e9" },
   ];
 
@@ -9039,7 +9196,7 @@ export default function EMICalculator() {
           <Card
             sx={{
               borderRadius: 4,
-              background: "linear-gradient(135deg, #1b3a8f 0%, #4361ee 100%)",
+              background: "linear-gradient(135deg, #16357f 0%, #3f74ff 100%)",
               color: "#fff",
             }}
           >
@@ -9612,7 +9769,7 @@ export default function Notifications() {
                 sx={{
                   p: 2,
                   borderRadius: 3,
-                  borderLeft: item.is_read ? "4px solid var(--bf-border)" : "4px solid #1b3a8f",
+                  borderLeft: item.is_read ? "4px solid var(--bf-border)" : "4px solid #16357f",
                   backgroundColor: item.is_read ? "var(--bf-paper)" : "var(--bf-panel)",
                 }}
               >
@@ -10164,7 +10321,7 @@ export default function AdminDashboard() {
             value={totals.customers}
             icon={<GroupIcon />}
             caption="Fictional demo customers"
-            gradient="linear-gradient(135deg, #1b3a8f 0%, #4361ee 100%)"
+            gradient="linear-gradient(135deg, #16357f 0%, #3f74ff 100%)"
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={4} xl={2}>
@@ -11184,7 +11341,7 @@ export default function AdminAnalytics() {
     {
       name: "Loans",
       value: totals.loans ? Math.round((totals.active_loans / totals.loans) * 100) : 0,
-      fill: "#4361ee",
+      fill: "#3f74ff",
     },
   ];
 
@@ -11447,7 +11604,7 @@ export default function AIMonitor() {
                         />
                         <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                         <ChartTooltip />
-                        <Bar dataKey="count" name="Questions" fill="#4361ee" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                        <Bar dataKey="count" name="Questions" fill="#3f74ff" radius={[6, 6, 0, 0]} maxBarSize={40} />
                       </BarChart>
                     </ResponsiveContainer>
                   </Box>
@@ -14690,6 +14847,560 @@ export default function AIMonitor() {
       }
     }
   }
+}
+```
+
+### frontend/src/branding.js
+
+```javascript
+/** Brand tokens used by the header, the footer, the logo and the hero sections. */
+export const BRAND = {
+  name: "BankFlow",
+  tagline: "AI Banking Assistant",
+  version: "1.0",
+  github: "https://github.com/Adnan8066/bankflow-ai-banking-assistant",
+  brief:
+    "https://github.com/Adnan8066/bankflow-ai-banking-assistant/blob/main/PROJECT_BRIEF.md",
+  fullCode:
+    "https://github.com/Adnan8066/bankflow-ai-banking-assistant/blob/main/FULL_CODE.md",
+  readme: "https://github.com/Adnan8066/bankflow-ai-banking-assistant#readme",
+  gradient: "linear-gradient(135deg, #0f2a6b 0%, #274bb0 55%, #3f74ff 100%)",
+  gradientDeep: "linear-gradient(135deg, #0b1f52 0%, #16357f 55%, #2f57c9 100%)",
+  footerGradient: "linear-gradient(180deg, #0b1531 0%, #080f24 100%)",
+  accent: "#12b1a0",
+};
+
+export const FOOTER_LINKS = {
+  product: [
+    { label: "Features", href: "/#features" },
+    { label: "AI Assistant", href: "/#assistant" },
+    { label: "Security", href: "/#security" },
+    { label: "About", href: "/#about" },
+  ],
+  project: [
+    { label: "Project brief", href: BRAND.brief },
+    { label: "Full source code", href: BRAND.fullCode },
+    { label: "README", href: BRAND.readme },
+    { label: "GitHub repository", href: BRAND.github },
+  ],
+};
+
+export const DEMO_ACCOUNTS = [
+  { role: "Customer", email: "mohammed@bankflow.com", password: "Demo@12345" },
+  { role: "Bank employee", email: "admin@bankflow.com", password: "Admin@12345" },
+];
+```
+
+### frontend/src/components/BrandLogo.jsx
+
+```jsx
+import { Box, Stack, Typography } from "@mui/material";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+
+import { BRAND } from "../branding.js";
+
+/**
+ * The BankFlow mark and wordmark. `tone="light"` is for dark surfaces such as the footer.
+ */
+export default function BrandLogo({
+  size = 40,
+  showText = true,
+  subtitle = BRAND.tagline,
+  tone = "default",
+  onClick,
+}) {
+  const onDark = tone === "light";
+
+  return (
+    <Stack
+      direction="row"
+      spacing={1.25}
+      alignItems="center"
+      onClick={onClick}
+      sx={{ cursor: onClick ? "pointer" : "default" }}
+    >
+      <Box
+        sx={{
+          position: "relative",
+          display: "grid",
+          placeItems: "center",
+          width: size,
+          height: size,
+          borderRadius: `${Math.round(size * 0.3)}px`,
+          background: BRAND.gradient,
+          color: "#fff",
+          boxShadow: "0 8px 20px rgba(19, 45, 110, 0.28)",
+          "&::after": {
+            content: '""',
+            position: "absolute",
+            inset: 0,
+            borderRadius: "inherit",
+            border: "1px solid rgba(255,255,255,.24)",
+          },
+        }}
+      >
+        <AccountBalanceIcon sx={{ fontSize: size * 0.5 }} />
+      </Box>
+
+      {showText && (
+        <Box>
+          <Typography
+            variant="subtitle1"
+            sx={{
+              fontWeight: 800,
+              letterSpacing: "-0.01em",
+              lineHeight: 1.15,
+              color: onDark ? "#ffffff" : "text.primary",
+            }}
+          >
+            {BRAND.name}
+          </Typography>
+          {subtitle && (
+            <Typography
+              variant="caption"
+              sx={{
+                display: "block",
+                letterSpacing: "0.03em",
+                textTransform: "uppercase",
+                fontSize: 10,
+                color: onDark ? "rgba(255,255,255,.65)" : "text.secondary",
+              }}
+            >
+              {subtitle}
+            </Typography>
+          )}
+        </Box>
+      )}
+    </Stack>
+  );
+}
+```
+
+### frontend/src/components/PublicHeader.jsx
+
+```jsx
+import { useEffect, useState } from "react";
+import {
+  AppBar,
+  Box,
+  Button,
+  Container,
+  Divider,
+  Drawer,
+  IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
+  Stack,
+  Toolbar,
+  Typography,
+} from "@mui/material";
+import MenuIcon from "@mui/icons-material/Menu";
+import CloseIcon from "@mui/icons-material/Close";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import { useNavigate } from "react-router-dom";
+
+import { useAuth } from "../context/AuthContext.jsx";
+import BrandLogo from "./BrandLogo.jsx";
+
+export const PUBLIC_NAV = [
+  { label: "Home", href: "#home" },
+  { label: "Features", href: "#features" },
+  { label: "AI Assistant", href: "#assistant" },
+  { label: "Security", href: "#security" },
+  { label: "About", href: "#about" },
+];
+
+/** Sticky public header used on the landing page: brand, section links and the two calls to action. */
+export default function PublicHeader() {
+  const navigate = useNavigate();
+  const { isAuthenticated, isAdmin } = useAuth();
+  const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [active, setActive] = useState("#home");
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  useEffect(() => {
+    const sections = PUBLIC_NAV.map((link) => document.querySelector(link.href)).filter(Boolean);
+    if (!sections.length) return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting);
+        if (visible.length) setActive(`#${visible[0].target.id}`);
+      },
+      { rootMargin: "-45% 0px -50% 0px", threshold: 0 }
+    );
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
+
+  const openApp = () => navigate(isAuthenticated ? (isAdmin ? "/admin" : "/dashboard") : "/login");
+  const go = (href) => {
+    setMenuOpen(false);
+    if (href.startsWith("#")) {
+      document.querySelector(href)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      navigate(href);
+    }
+  };
+
+  return (
+    <AppBar
+      position="sticky"
+      sx={{
+        backgroundColor: "rgba(var(--bf-header-rgb), 0.86)",
+        backdropFilter: "blur(14px)",
+        borderBottom: "1px solid",
+        borderColor: "divider",
+        boxShadow: scrolled ? "0 10px 30px rgba(11, 25, 60, 0.08)" : "none",
+        transition: "box-shadow .25s ease",
+      }}
+    >
+      <Container maxWidth="lg">
+        <Toolbar disableGutters sx={{ minHeight: { xs: 64, md: 72 }, gap: 2 }}>
+          <Box sx={{ flexGrow: { xs: 1, md: 0 } }}>
+            <BrandLogo onClick={() => go("#home")} />
+          </Box>
+
+          <Stack
+            direction="row"
+            spacing={0.5}
+            sx={{ display: { xs: "none", md: "flex" }, flexGrow: 1, justifyContent: "center" }}
+          >
+            {PUBLIC_NAV.map((link) => (
+              <Button
+                key={link.label}
+                onClick={() => go(link.href)}
+                sx={{
+                  color: active === link.href ? "primary.main" : "text.secondary",
+                  fontWeight: 600,
+                  px: 1.5,
+                  position: "relative",
+                  "&:hover": { color: "primary.main", backgroundColor: "transparent" },
+                  "&::after": {
+                    content: '""',
+                    position: "absolute",
+                    left: 12,
+                    right: 12,
+                    bottom: 6,
+                    height: 2,
+                    borderRadius: 2,
+                    backgroundColor: "primary.main",
+                    transform: active === link.href ? "scaleX(1)" : "scaleX(0)",
+                    transition: "transform .2s ease",
+                  },
+                }}
+              >
+                {link.label}
+              </Button>
+            ))}
+          </Stack>
+
+          <Stack direction="row" spacing={1.5} alignItems="center" sx={{ ml: "auto" }}>
+            <Button
+              onClick={() => navigate("/login")}
+              sx={{ display: { xs: "none", sm: "inline-flex" }, color: "text.primary" }}
+            >
+              Sign in
+            </Button>
+            <Button
+              variant="contained"
+              endIcon={<ArrowForwardIcon fontSize="small" />}
+              onClick={isAuthenticated ? openApp : () => navigate("/register")}
+              sx={{ display: { xs: "none", sm: "inline-flex" }, boxShadow: "0 8px 20px rgba(19,45,110,.22)" }}
+            >
+              {isAuthenticated ? "Open app" : "Get started"}
+            </Button>
+            <IconButton
+              onClick={() => setMenuOpen(true)}
+              sx={{ display: { md: "none" } }}
+              aria-label="Open menu"
+            >
+              <MenuIcon />
+            </IconButton>
+          </Stack>
+        </Toolbar>
+      </Container>
+
+      <Drawer anchor="right" open={menuOpen} onClose={() => setMenuOpen(false)}>
+        <Box sx={{ width: 288, p: 2 }}>
+          <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
+            <BrandLogo size={34} subtitle={null} />
+            <IconButton onClick={() => setMenuOpen(false)} aria-label="Close menu">
+              <CloseIcon />
+            </IconButton>
+          </Stack>
+          <Divider sx={{ my: 1.5 }} />
+          <List disablePadding>
+            {PUBLIC_NAV.map((link) => (
+              <ListItemButton key={link.label} onClick={() => go(link.href)} sx={{ borderRadius: 2 }}>
+                <ListItemText primary={link.label} />
+              </ListItemButton>
+            ))}
+          </List>
+          <Divider sx={{ my: 1.5 }} />
+          <Stack spacing={1.5}>
+            <Button fullWidth variant="outlined" onClick={() => navigate("/login")}>
+              Sign in
+            </Button>
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={isAuthenticated ? openApp : () => navigate("/register")}
+            >
+              {isAuthenticated ? "Open app" : "Get started"}
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ textAlign: "center" }}>
+              Demo application with fictional data only.
+            </Typography>
+          </Stack>
+        </Box>
+      </Drawer>
+    </AppBar>
+  );
+}
+```
+
+### frontend/src/components/SiteFooter.jsx
+
+```jsx
+import { Box, Chip, Container, Divider, Grid, Link, Stack, Typography } from "@mui/material";
+import GitHubIcon from "@mui/icons-material/GitHub";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
+
+import { BRAND, DEMO_ACCOUNTS, FOOTER_LINKS } from "../branding.js";
+import BrandLogo from "./BrandLogo.jsx";
+
+const muted = "rgba(255,255,255,.68)";
+
+function FooterColumn({ title, children }) {
+  return (
+    <Grid item xs={12} sm={6} md={3}>
+      <Typography
+        variant="caption"
+        sx={{ color: "#fff", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" }}
+      >
+        {title}
+      </Typography>
+      <Stack spacing={1} sx={{ mt: 1.5 }}>
+        {children}
+      </Stack>
+    </Grid>
+  );
+}
+
+function FooterLink({ href, children, external }) {
+  return (
+    <Link
+      href={href}
+      underline="none"
+      {...(external ? { target: "_blank", rel: "noreferrer" } : {})}
+      sx={{
+        color: muted,
+        fontSize: 14,
+        width: "fit-content",
+        transition: "color .18s ease",
+        "&:hover": { color: "#fff" },
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/**
+ * variant="full" is used on the public landing page, "slim" inside the application.
+ */
+export default function SiteFooter({ variant = "full" }) {
+  if (variant === "slim") {
+    return (
+      <Box
+        component="footer"
+        sx={{
+          borderTop: "1px solid",
+          borderColor: "divider",
+          backgroundColor: "background.paper",
+          mt: 4,
+          py: 2,
+        }}
+      >
+        <Container maxWidth="xl" sx={{ px: { xs: 2, md: 3 } }}>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.5}
+            justifyContent="space-between"
+            alignItems={{ xs: "flex-start", sm: "center" }}
+          >
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <BrandLogo size={26} showText={false} />
+              <Typography variant="caption" color="text.secondary">
+                {BRAND.name} demo application. All figures are fictional and no real money moves.
+              </Typography>
+            </Stack>
+            <Stack direction="row" spacing={2.5} alignItems="center">
+              <Link
+                href={BRAND.github}
+                target="_blank"
+                rel="noreferrer"
+                underline="none"
+                sx={{ display: "flex", alignItems: "center", gap: 0.75, color: "text.secondary", "&:hover": { color: "primary.main" } }}
+              >
+                <GitHubIcon sx={{ fontSize: 16 }} />
+                <Typography variant="caption">Source code</Typography>
+              </Link>
+              <Chip size="small" variant="outlined" label={`v${BRAND.version}`} />
+            </Stack>
+          </Stack>
+        </Container>
+      </Box>
+    );
+  }
+
+  return (
+    <Box component="footer" sx={{ background: BRAND.footerGradient, color: "#fff", pt: { xs: 5, md: 7 } }}>
+      <Container maxWidth="lg">
+        <Grid container spacing={{ xs: 4, md: 5 }}>
+          <Grid item xs={12} md={4}>
+            <BrandLogo size={42} tone="light" subtitle="Demo banking platform" />
+            <Typography variant="body2" sx={{ color: muted, mt: 2, maxWidth: 330 }}>
+              A full stack demo bank built with React, Django REST Framework and JWT authentication,
+              with an AI assistant that answers questions from your own simulated data.
+            </Typography>
+            <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: "wrap", gap: 1 }}>
+              <Chip
+                size="small"
+                icon={<ShieldOutlinedIcon sx={{ fontSize: 16, color: "#fff !important" }} />}
+                label="Fictional data only"
+                sx={{ backgroundColor: "rgba(255,255,255,.12)", color: "#fff" }}
+              />
+              <Chip
+                size="small"
+                label="No real money movement"
+                sx={{ backgroundColor: "rgba(255,255,255,.12)", color: "#fff" }}
+              />
+            </Stack>
+          </Grid>
+
+          <FooterColumn title="Product">
+            {FOOTER_LINKS.product.map((link) => (
+              <FooterLink key={link.label} href={link.href}>
+                {link.label}
+              </FooterLink>
+            ))}
+          </FooterColumn>
+
+          <FooterColumn title="Project">
+            {FOOTER_LINKS.project.map((link) => (
+              <FooterLink key={link.label} href={link.href} external>
+                {link.label}
+              </FooterLink>
+            ))}
+          </FooterColumn>
+
+          <FooterColumn title="Demo accounts">
+            {DEMO_ACCOUNTS.map((account) => (
+              <Box key={account.email}>
+                <Typography variant="caption" sx={{ color: "rgba(255,255,255,.5)" }}>
+                  {account.role}
+                </Typography>
+                <Typography variant="body2" sx={{ color: muted, fontSize: 13 }}>
+                  {account.email}
+                </Typography>
+                <Typography variant="caption" sx={{ color: BRAND.accent }}>
+                  {account.password}
+                </Typography>
+              </Box>
+            ))}
+          </FooterColumn>
+        </Grid>
+
+        <Divider sx={{ mt: { xs: 4, md: 5 }, borderColor: "rgba(255,255,255,.12)" }} />
+
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          justifyContent="space-between"
+          alignItems={{ xs: "flex-start", sm: "center" }}
+          sx={{ py: 3 }}
+        >
+          <Typography variant="caption" sx={{ color: "rgba(255,255,255,.55)" }}>
+            © {new Date().getFullYear()} {BRAND.name} demo. Built with React, Material UI, Django REST
+            Framework and JWT.
+          </Typography>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Typography variant="caption" sx={{ color: "rgba(255,255,255,.55)" }}>
+              Version {BRAND.version}
+            </Typography>
+            <Link
+              href={BRAND.github}
+              target="_blank"
+              rel="noreferrer"
+              underline="none"
+              sx={{ display: "flex", alignItems: "center", gap: 0.75, color: muted, "&:hover": { color: "#fff" } }}
+            >
+              <GitHubIcon sx={{ fontSize: 16 }} />
+              <Typography variant="caption">github.com/Adnan8066</Typography>
+            </Link>
+          </Stack>
+        </Stack>
+      </Container>
+    </Box>
+  );
+}
+```
+
+### frontend/src/context/ColorModeContext.jsx
+
+```jsx
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { CssBaseline, ThemeProvider } from "@mui/material";
+
+import { createAppTheme } from "../theme.js";
+
+const STORAGE_KEY = "bankflow_color_mode";
+
+const ColorModeContext = createContext({ mode: "light", toggleColorMode: () => {} });
+
+/**
+ * Holds the light or dark choice, remembers it in localStorage, and mirrors it onto
+ * the <html> element so the CSS variables in index.css follow the same mode.
+ */
+export function ColorModeProvider({ children }) {
+  const [mode, setMode] = useState(() => localStorage.getItem(STORAGE_KEY) || "light");
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, mode);
+    document.documentElement.setAttribute("data-theme", mode);
+    document.documentElement.style.colorScheme = mode;
+  }, [mode]);
+
+  const theme = useMemo(() => createAppTheme(mode), [mode]);
+  const value = useMemo(
+    () => ({
+      mode,
+      toggleColorMode: () => setMode((current) => (current === "light" ? "dark" : "light")),
+    }),
+    [mode]
+  );
+
+  return (
+    <ColorModeContext.Provider value={value}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        {children}
+      </ThemeProvider>
+    </ColorModeContext.Provider>
+  );
+}
+
+export function useColorMode() {
+  return useContext(ColorModeContext);
 }
 ```
 
@@ -19005,6 +19716,135 @@ if __name__ == "__main__":
     main()
 ```
 
+### tools/generate_full_code.py
+
+```python
+#!/usr/bin/env python3
+"""Regenerate FULL_CODE.md: every source file of the project in one headline-wise document.
+
+Usage: python tools/generate_full_code.py
+"""
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import build_bankflow_docx as base  # noqa: E402  (reuses the curated file order)
+
+ROOT = base.ROOT
+OUTPUT = ROOT / "FULL_CODE.md"
+
+LANGUAGES = {
+    ".py": "python",
+    ".jsx": "jsx",
+    ".js": "javascript",
+    ".json": "json",
+    ".css": "css",
+    ".html": "html",
+    ".svg": "xml",
+    ".ps1": "powershell",
+    ".yml": "yaml",
+    ".txt": "text",
+    ".md": "markdown",
+}
+
+SKIP = {"FULL_CODE.md", "package-lock.json"}
+
+
+def tracked_files() -> list[str]:
+    """Every text file git knows about, so the document can never go stale."""
+    result = subprocess.run(
+        ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True
+    )
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def order_key(path: str) -> tuple:
+    """Root documents first, then backend, frontend and tools, using the curated order."""
+    preferred = base.MANIFEST
+    names = [entry[0] for entry in preferred]
+    index = names.index(path) if path in names else len(names) + 1
+    top_level = 0 if "/" not in path else {"backend": 1, "frontend": 2, "tools": 3}.get(
+        path.split("/")[0], 4
+    )
+    return (top_level, index, path)
+
+
+def main() -> None:
+    files = [
+        path
+        for path in tracked_files()
+        if path not in SKIP and (ROOT / path).exists() and (ROOT / path).suffix in LANGUAGES
+    ]
+    files.sort(key=order_key)
+
+    lines = [
+        "# BANKFLOW - AI BANKING ASSISTANT",
+        "",
+        "Complete source code of the project, headline-wise, in the order you create the files.",
+        f"Generated from {len(files)} tracked files by tools/generate_full_code.py.",
+        "",
+        "> Demo application only. All banking data is fictional and no real money movement happens.",
+        "",
+        "---",
+        "",
+        "## Install and run",
+        "",
+        "```bash",
+        "git clone https://github.com/Adnan8066/bankflow-ai-banking-assistant.git",
+        "cd bankflow-ai-banking-assistant",
+        "",
+        "# backend",
+        "cd backend",
+        "python -m venv venv",
+        "venv\\Scripts\\activate            # source venv/bin/activate on macOS or Linux",
+        "pip install -r requirements.txt",
+        "copy .env.example .env           # cp on macOS or Linux",
+        "python manage.py migrate",
+        "python manage.py seed_demo --flush",
+        "python manage.py runserver 127.0.0.1:8000",
+        "",
+        "# frontend, in a second terminal",
+        "cd frontend",
+        "npm install",
+        "copy .env.example .env           # cp on macOS or Linux",
+        "npm run dev",
+        "```",
+        "",
+        "---",
+        "",
+    ]
+
+    current_group = None
+    for path in files:
+        group = "root" if "/" not in path else path.split("/")[0]
+        if group != current_group:
+            current_group = group
+            title = {
+                "root": "Project files",
+                "backend": "Backend (Django REST Framework)",
+                "frontend": "Frontend (React and Vite)",
+                "tools": "Tooling",
+            }.get(group, group.title())
+            lines += [f"## {title}", ""]
+
+        fence = "````" if path.endswith(".md") else "```"
+        language = LANGUAGES.get(Path(path).suffix, "text")
+        lines += [f"### {path}", "", f"{fence}{language}"]
+        lines.append((ROOT / path).read_text(encoding="utf-8").rstrip("\n"))
+        lines += [fence, ""]
+
+    OUTPUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"wrote {OUTPUT} with {len(files)} files")
+
+
+if __name__ == "__main__":
+    main()
+```
+
 ### tools/github_push.ps1
 
 ```powershell
@@ -19364,5 +20204,61 @@ finally {
     $word.Quit()
     [System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null
 }
+```
+
+## .Github
+
+### .github/workflows/ci.yml
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Django tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Check that migrations are up to date
+        run: python manage.py makemigrations --check --dry-run
+      - name: Create the database
+        run: python manage.py migrate
+      - name: Seed the fictional demo data
+        run: python manage.py seed_demo --flush
+      - name: Run the test suite
+        run: python manage.py test
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build the production bundle
+        run: npm run build
 ```
 

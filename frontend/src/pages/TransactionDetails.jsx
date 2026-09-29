@@ -76,7 +76,7 @@ export default function TransactionDetails() {
               borderRadius: 4,
               background: isCredit
                 ? "linear-gradient(135deg, #0f5132 0%, #16a34a 100%)"
-                : "linear-gradient(135deg, #12295e 0%, #1b3a8f 100%)",
+                : "linear-gradient(135deg, #0b1f52 0%, #16357f 100%)",
               color: "#fff",
             }}
           >

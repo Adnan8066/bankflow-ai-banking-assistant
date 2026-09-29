@@ -1,6 +1,7 @@
 import {
   Avatar,
   Box,
+  Chip,
   Divider,
   Drawer,
   List,
@@ -9,6 +10,7 @@ import {
   ListItemText,
   Stack,
   Toolbar,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
@@ -22,14 +24,16 @@ import PersonIcon from "@mui/icons-material/Person";
 import GroupIcon from "@mui/icons-material/Group";
 import InsightsIcon from "@mui/icons-material/Insights";
 import MonitorHeartIcon from "@mui/icons-material/MonitorHeart";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import LogoutIcon from "@mui/icons-material/Logout";
+import GitHubIcon from "@mui/icons-material/GitHub";
 import { NavLink, useNavigate } from "react-router-dom";
 
+import { BRAND } from "../branding.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { initials } from "../utils/formatCurrency.js";
+import BrandLogo from "./BrandLogo.jsx";
 
-export const DRAWER_WIDTH = 252;
+export const DRAWER_WIDTH = 264;
 
 const CUSTOMER_LINKS = [
   { to: "/dashboard", label: "Dashboard", icon: <DashboardIcon /> },
@@ -43,13 +47,53 @@ const CUSTOMER_LINKS = [
 ];
 
 const ADMIN_LINKS = [
-  { to: "/admin", label: "Admin Dashboard", icon: <DashboardIcon /> },
+  { to: "/admin", label: "Admin Dashboard", icon: <DashboardIcon />, end: true },
   { to: "/admin/customers", label: "Customers", icon: <GroupIcon /> },
   { to: "/admin/transactions", label: "Transactions", icon: <ReceiptLongIcon /> },
   { to: "/admin/loans", label: "Loan Management", icon: <RequestQuoteIcon /> },
   { to: "/admin/analytics", label: "Analytics", icon: <InsightsIcon /> },
   { to: "/admin/ai-monitor", label: "AI Monitoring", icon: <MonitorHeartIcon /> },
 ];
+
+const itemSx = {
+  borderRadius: 2,
+  mb: 0.5,
+  pl: 1.75,
+  color: "text.secondary",
+  position: "relative",
+  "& .MuiListItemIcon-root": { color: "text.secondary", minWidth: 42 },
+  "&::before": {
+    content: '""',
+    position: "absolute",
+    left: 0,
+    top: 8,
+    bottom: 8,
+    width: 3,
+    borderRadius: 3,
+    backgroundColor: "primary.main",
+    opacity: 0,
+    transition: "opacity .18s ease",
+  },
+  "&:hover": { backgroundColor: "var(--bf-tint)" },
+  "&.active": {
+    backgroundColor: "var(--bf-tint)",
+    color: "primary.main",
+    "&::before": { opacity: 1 },
+    "& .MuiListItemIcon-root": { color: "primary.main" },
+    "& .MuiListItemText-primary": { fontWeight: 700 },
+  },
+};
+
+function SectionLabel({ children }) {
+  return (
+    <Typography
+      variant="overline"
+      sx={{ px: 2, mt: 2, mb: 0.5, display: "block", color: "text.secondary", fontWeight: 700, fontSize: 10.5, letterSpacing: "0.09em" }}
+    >
+      {children}
+    </Typography>
+  );
+}
 
 function SidebarContent({ onNavigate }) {
   const { user, isAdmin, logout } = useAuth();
@@ -62,59 +106,15 @@ function SidebarContent({ onNavigate }) {
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Toolbar sx={{ px: 2 }}>
-        <Stack direction="row" spacing={1.25} alignItems="center">
-          <Box
-            sx={{
-              display: "grid",
-              placeItems: "center",
-              width: 36,
-              height: 36,
-              borderRadius: 2,
-              backgroundColor: "primary.main",
-              color: "#fff",
-            }}
-          >
-            <AccountBalanceWalletIcon fontSize="small" />
-          </Box>
-          <Box>
-            <Typography variant="subtitle1" fontWeight={800} lineHeight={1.1}>
-              BankFlow
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              AI Banking Assistant
-            </Typography>
-          </Box>
-        </Stack>
+      <Toolbar sx={{ px: 2, minHeight: { xs: 64, md: 72 } }}>
+        <BrandLogo size={36} onClick={() => navigate("/dashboard")} />
       </Toolbar>
       <Divider />
 
-      <List sx={{ px: 1.5, py: 2, flexGrow: 1 }}>
-        <Typography
-          variant="overline"
-          sx={{ px: 1.5, color: "text.secondary", fontWeight: 700 }}
-        >
-          Banking
-        </Typography>
+      <List sx={{ px: 1.25, py: 1.5, flexGrow: 1, overflowY: "auto" }}>
+        <SectionLabel>Banking</SectionLabel>
         {CUSTOMER_LINKS.map((link) => (
-          <ListItemButton
-            key={link.to}
-            component={NavLink}
-            to={link.to}
-            onClick={onNavigate}
-            sx={{
-              borderRadius: 2,
-              mb: 0.5,
-              color: "text.secondary",
-              "& .MuiListItemIcon-root": { color: "text.secondary", minWidth: 42 },
-              "&.active": {
-                backgroundColor: "var(--bf-tint)",
-                color: "primary.main",
-                "& .MuiListItemIcon-root": { color: "primary.main" },
-                "& .MuiListItemText-primary": { fontWeight: 700 },
-              },
-            }}
-          >
+          <ListItemButton key={link.to} component={NavLink} to={link.to} onClick={onNavigate} sx={itemSx}>
             <ListItemIcon>{link.icon}</ListItemIcon>
             <ListItemText primaryTypographyProps={{ fontSize: 14 }} primary={link.label} />
           </ListItemButton>
@@ -122,31 +122,15 @@ function SidebarContent({ onNavigate }) {
 
         {isAdmin && (
           <>
-            <Typography
-              variant="overline"
-              sx={{ px: 1.5, mt: 2, display: "block", color: "text.secondary", fontWeight: 700 }}
-            >
-              Bank Employee
-            </Typography>
+            <SectionLabel>Bank employee</SectionLabel>
             {ADMIN_LINKS.map((link) => (
               <ListItemButton
                 key={link.to}
                 component={NavLink}
                 to={link.to}
-                end={link.to === "/admin"}
+                end={link.end}
                 onClick={onNavigate}
-                sx={{
-                  borderRadius: 2,
-                  mb: 0.5,
-                  color: "text.secondary",
-                  "& .MuiListItemIcon-root": { color: "text.secondary", minWidth: 42 },
-                  "&.active": {
-                    backgroundColor: "var(--bf-tint)",
-                    color: "primary.main",
-                    "& .MuiListItemIcon-root": { color: "primary.main" },
-                    "& .MuiListItemText-primary": { fontWeight: 700 },
-                  },
-                }}
+                sx={itemSx}
               >
                 <ListItemIcon>{link.icon}</ListItemIcon>
                 <ListItemText primaryTypographyProps={{ fontSize: 14 }} primary={link.label} />
@@ -156,25 +140,44 @@ function SidebarContent({ onNavigate }) {
         )}
       </List>
 
+      <Box sx={{ px: 1.5, pb: 1 }}>
+        <Chip
+          size="small"
+          variant="outlined"
+          label="Demo data only"
+          sx={{ width: "100%", justifyContent: "flex-start" }}
+        />
+      </Box>
+
       <Divider />
-      <Stack direction="row" spacing={1.5} alignItems="center" sx={{ p: 2 }}>
-        <Avatar sx={{ bgcolor: "primary.main", width: 38, height: 38, fontSize: 14 }}>
+      <Stack direction="row" spacing={1.25} alignItems="center" sx={{ p: 1.75 }}>
+        <Avatar sx={{ width: 38, height: 38, fontSize: 14, background: BRAND.gradient }}>
           {initials(user?.name || "BF")}
         </Avatar>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography variant="subtitle2" noWrap>
             {user?.name || "Demo Customer"}
           </Typography>
-          <Typography variant="caption" color="text.secondary" noWrap>
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
             {user?.email}
           </Typography>
         </Box>
-        <ListItemButton
-          onClick={handleLogout}
-          sx={{ borderRadius: 2, minWidth: 40, justifyContent: "center", p: 1 }}
-        >
-          <LogoutIcon fontSize="small" />
-        </ListItemButton>
+        <Tooltip title="Source code">
+          <ListItemButton
+            component="a"
+            href={BRAND.github}
+            target="_blank"
+            rel="noreferrer"
+            sx={{ borderRadius: 2, minWidth: 36, justifyContent: "center", p: 0.75 }}
+          >
+            <GitHubIcon fontSize="small" />
+          </ListItemButton>
+        </Tooltip>
+        <Tooltip title="Sign out">
+          <ListItemButton onClick={handleLogout} sx={{ borderRadius: 2, minWidth: 36, justifyContent: "center", p: 0.75 }}>
+            <LogoutIcon fontSize="small" />
+          </ListItemButton>
+        </Tooltip>
       </Stack>
     </Box>
   );
@@ -203,7 +206,9 @@ export default function Sidebar({ mobileOpen, onClose }) {
           "& .MuiDrawer-paper": {
             width: DRAWER_WIDTH,
             boxSizing: "border-box",
-            borderRight: "1px solid var(--bf-border)",
+            borderRight: "1px solid",
+            borderColor: "divider",
+            backgroundColor: "background.paper",
           },
         }}
       >

@@ -82,7 +82,7 @@ export default function LoanDetails() {
           <Card
             sx={{
               color: "#fff",
-              background: "linear-gradient(135deg, #12295e 0%, #1b3a8f 60%, #4361ee 100%)",
+              background: "linear-gradient(135deg, #0b1f52 0%, #16357f 60%, #3f74ff 100%)",
               borderRadius: 4,
             }}
           >

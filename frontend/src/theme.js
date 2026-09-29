@@ -2,30 +2,30 @@ import { createTheme } from "@mui/material/styles";
 
 /**
  * BankFlow design tokens.
- * One builder serves light and dark mode so every page stays consistent.
+ * A deep navy brand colour with a teal accent, tuned separately for light and dark mode.
  */
 const LIGHT = {
-  primary: { main: "#1b3a8f", light: "#4361ee", dark: "#122a68", contrastText: "#ffffff" },
-  secondary: { main: "#0ea5e9", contrastText: "#ffffff" },
+  primary: { main: "#16357f", light: "#3f74ff", dark: "#0d2258", contrastText: "#ffffff" },
+  secondary: { main: "#0f9d8f", contrastText: "#ffffff" },
   success: { main: "#16a34a" },
   error: { main: "#e11d48" },
   warning: { main: "#f59e0b" },
-  info: { main: "#6366f1" },
-  background: { default: "#f4f6fb", paper: "#ffffff" },
-  text: { primary: "#111a2e", secondary: "#5a6478" },
-  divider: "#e6e9f2",
+  info: { main: "#4f46e5" },
+  background: { default: "#f5f7fc", paper: "#ffffff" },
+  text: { primary: "#0e1729", secondary: "#5a6784" },
+  divider: "#e6eaf3",
 };
 
 const DARK = {
-  primary: { main: "#7b96ff", light: "#a9baff", dark: "#5a76e6", contrastText: "#0b1020" },
-  secondary: { main: "#4fc3f7", contrastText: "#0b1020" },
+  primary: { main: "#7f9dff", light: "#a8bcff", dark: "#5677e8", contrastText: "#071022" },
+  secondary: { main: "#2dd4bf", contrastText: "#04211d" },
   success: { main: "#4ade80" },
   error: { main: "#fb7185" },
   warning: { main: "#fbbf24" },
-  info: { main: "#8b95f8" },
-  background: { default: "#0d1220", paper: "#161d2f" },
-  text: { primary: "#e9edf9", secondary: "#9fabc4" },
-  divider: "#28324a",
+  info: { main: "#a5b4fc" },
+  background: { default: "#080d19", paper: "#111a2c" },
+  text: { primary: "#e9eefb", secondary: "#98a5c0" },
+  divider: "#232e46",
 };
 
 export function createAppTheme(mode = "light") {
@@ -34,15 +34,16 @@ export function createAppTheme(mode = "light") {
 
   return createTheme({
     palette: { mode, ...palette },
-    shape: { borderRadius: 12 },
+    shape: { borderRadius: 14 },
     typography: {
       fontFamily: '"Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-      h1: { fontWeight: 800, letterSpacing: "-0.02em" },
-      h2: { fontWeight: 800, letterSpacing: "-0.02em" },
-      h3: { fontWeight: 700 },
-      h4: { fontWeight: 700 },
-      h5: { fontWeight: 700 },
+      h1: { fontWeight: 800, letterSpacing: "-0.025em" },
+      h2: { fontWeight: 800, letterSpacing: "-0.025em" },
+      h3: { fontWeight: 700, letterSpacing: "-0.02em" },
+      h4: { fontWeight: 700, letterSpacing: "-0.015em" },
+      h5: { fontWeight: 700, letterSpacing: "-0.01em" },
       h6: { fontWeight: 700 },
+      subtitle1: { fontWeight: 600 },
       button: { textTransform: "none", fontWeight: 600 },
     },
     components: {
@@ -54,17 +55,25 @@ export function createAppTheme(mode = "light") {
         styleOverrides: {
           root: {
             backgroundImage: "none",
+            borderRadius: 16,
             border: "1px solid",
             borderColor: palette.divider,
             boxShadow: isDark
               ? "none"
-              : "0 1px 2px rgba(17, 26, 46, 0.04), 0 8px 24px rgba(17, 26, 46, 0.04)",
+              : "0 1px 2px rgba(16, 28, 58, 0.04), 0 12px 28px rgba(16, 28, 58, 0.05)",
           },
         },
       },
       MuiButton: {
         defaultProps: { disableElevation: true },
-        styleOverrides: { root: { borderRadius: 10, paddingInline: 18 } },
+        styleOverrides: {
+          root: { borderRadius: 10, paddingInline: 18, fontWeight: 600 },
+          containedPrimary: {
+            background: isDark
+              ? undefined
+              : "linear-gradient(135deg, #16357f 0%, #2b53ba 100%)",
+          },
+        },
       },
       MuiChip: { styleOverrides: { root: { fontWeight: 600 } } },
       MuiTableCell: {
@@ -73,10 +82,21 @@ export function createAppTheme(mode = "light") {
             fontWeight: 700,
             color: palette.text.secondary,
             backgroundColor: "var(--bf-surface)",
+            borderBottomColor: palette.divider,
+            letterSpacing: "0.02em",
           },
+          body: { borderBottomColor: palette.divider },
         },
       },
       MuiAppBar: { defaultProps: { elevation: 0, color: "inherit" } },
+      MuiDrawer: {
+        styleOverrides: { paper: { backgroundImage: "none" } },
+      },
+      MuiTooltip: {
+        styleOverrides: {
+          tooltip: { backgroundColor: isDark ? "#1c2740" : "#0e1729", fontSize: 12, borderRadius: 8 },
+        },
+      },
     },
   });
 }

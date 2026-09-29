@@ -97,7 +97,7 @@ export default function AdminDashboard() {
             value={totals.customers}
             icon={<GroupIcon />}
             caption="Fictional demo customers"
-            gradient="linear-gradient(135deg, #1b3a8f 0%, #4361ee 100%)"
+            gradient="linear-gradient(135deg, #16357f 0%, #3f74ff 100%)"
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={4} xl={2}>

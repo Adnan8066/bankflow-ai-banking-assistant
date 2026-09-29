@@ -127,7 +127,7 @@ export default function Notifications() {
                 sx={{
                   p: 2,
                   borderRadius: 3,
-                  borderLeft: item.is_read ? "4px solid var(--bf-border)" : "4px solid #1b3a8f",
+                  borderLeft: item.is_read ? "4px solid var(--bf-border)" : "4px solid #16357f",
                   backgroundColor: item.is_read ? "var(--bf-paper)" : "var(--bf-panel)",
                 }}
               >

@@ -102,7 +102,7 @@ export default function AIMonitor() {
                         />
                         <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                         <ChartTooltip />
-                        <Bar dataKey="count" name="Questions" fill="#4361ee" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                        <Bar dataKey="count" name="Questions" fill="#3f74ff" radius={[6, 6, 0, 0]} maxBarSize={40} />
                       </BarChart>
                     </ResponsiveContainer>
                   </Box>

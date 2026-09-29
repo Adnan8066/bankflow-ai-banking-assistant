@@ -45,7 +45,7 @@ export default function EMICalculator() {
   );
 
   const donutData = [
-    { name: "Principal", value: result.principal, color: "#1b3a8f" },
+    { name: "Principal", value: result.principal, color: "#16357f" },
     { name: "Total interest", value: result.total_interest, color: "#0ea5e9" },
   ];
 
@@ -227,7 +227,7 @@ export default function EMICalculator() {
           <Card
             sx={{
               borderRadius: 4,
-              background: "linear-gradient(135deg, #1b3a8f 0%, #4361ee 100%)",
+              background: "linear-gradient(135deg, #16357f 0%, #3f74ff 100%)",
               color: "#fff",
             }}
           >

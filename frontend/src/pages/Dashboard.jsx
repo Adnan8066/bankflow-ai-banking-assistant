@@ -134,7 +134,7 @@ export default function Dashboard() {
             value={formatCurrency(data.balance)}
             icon={<AccountBalanceWalletIcon />}
             caption={`Savings rate ${data.savings_rate}% this month`}
-            gradient="linear-gradient(135deg, #1b3a8f 0%, #4361ee 100%)"
+            gradient="linear-gradient(135deg, #16357f 0%, #3f74ff 100%)"
           />
         </Grid>
         <Grid item xs={12} sm={6} lg={3}>
@@ -318,7 +318,7 @@ export default function Dashboard() {
                   <Bar
                     dataKey="transactions"
                     name="Transactions"
-                    fill="#4361ee"
+                    fill="#3f74ff"
                     radius={[6, 6, 0, 0]}
                     maxBarSize={44}
                   />

@@ -59,7 +59,7 @@ export default function AdminAnalytics() {
     {
       name: "Loans",
       value: totals.loans ? Math.round((totals.active_loans / totals.loans) * 100) : 0,
-      fill: "#4361ee",
+      fill: "#3f74ff",
     },
   ];
 

@@ -92,7 +92,7 @@ export default function Account() {
             <Card
               sx={{
                 color: "#fff",
-                background: "linear-gradient(135deg, #12295e 0%, #1b3a8f 55%, #4361ee 100%)",
+                background: "linear-gradient(135deg, #0b1f52 0%, #16357f 55%, #3f74ff 100%)",
                 borderRadius: 4,
               }}
             >

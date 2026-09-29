@@ -3,21 +3,25 @@
   /* Surface tokens used by the components instead of hard coded light colours,
      so one attribute on <html> switches the whole application. */
   --bf-tint: #eef2fd;
-  --bf-surface: #f8f9fd;
+  --bf-surface: #f7f9fd;
   --bf-panel: #fbfcff;
   --bf-paper: #ffffff;
-  --bf-border: #e6e9f2;
-  --bf-glow: #e8eefc;
+  --bf-border: #e6eaf3;
+  --bf-glow: #e6ecfb;
+  --bf-header-rgb: 255, 255, 255;
+  --bf-shell: #f5f7fc;
 }
 
 html[data-theme="dark"] {
   color-scheme: dark;
-  --bf-tint: #202b47;
-  --bf-surface: #1a2237;
-  --bf-panel: #141b2c;
-  --bf-paper: #161d2f;
-  --bf-border: #28324a;
-  --bf-glow: #1b2540;
+  --bf-tint: #1d2740;
+  --bf-surface: #172033;
+  --bf-panel: #121a2b;
+  --bf-paper: #111a2c;
+  --bf-border: #232e46;
+  --bf-glow: #17223c;
+  --bf-header-rgb: 17, 26, 44;
+  --bf-shell: #080d19;
 }
 
 html,
@@ -29,6 +33,7 @@ body,
 
 body {
   font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bf-shell);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -68,4 +73,8 @@ html[data-theme="dark"] ::-webkit-scrollbar-thumb {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+html {
+  scroll-behavior: smooth;
 }

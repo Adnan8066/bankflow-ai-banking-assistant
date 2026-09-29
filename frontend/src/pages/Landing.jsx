@@ -1,5 +1,4 @@
 import {
-  AppBar,
   Box,
   Button,
   Card,
@@ -8,9 +7,7 @@ import {
   Container,
   Divider,
   Grid,
-  IconButton,
   Stack,
-  Toolbar,
   Typography,
 } from "@mui/material";
 import {
@@ -25,19 +22,13 @@ import {
   FiUserCheck,
   FiZap,
 } from "react-icons/fi";
-import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 import SmartToyIcon from "@mui/icons-material/SmartToy";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
-
-const NAV_LINKS = [
-  { label: "Home", href: "#home" },
-  { label: "Features", href: "#features" },
-  { label: "AI Assistant", href: "#assistant" },
-  { label: "Security", href: "#security" },
-  { label: "About", href: "#about" },
-];
+import { BRAND } from "../branding.js";
+import PublicHeader from "../components/PublicHeader.jsx";
+import SiteFooter from "../components/SiteFooter.jsx";
 
 const FEATURES = [
   {
@@ -89,77 +80,32 @@ export default function Landing() {
 
   return (
     <Box id="home" sx={{ backgroundColor: "#ffffff" }}>
-      {/* ------------------------------------------------------------ navbar */}
-      <AppBar
-        position="sticky"
-        sx={{
-          backgroundColor: "rgba(255,255,255,.94)",
-          backdropFilter: "blur(10px)",
-          borderBottom: "1px solid #e6e9f2",
-        }}
-      >
-        <Container maxWidth="lg">
-          <Toolbar disableGutters sx={{ gap: 2 }}>
-            <Stack direction="row" spacing={1.25} alignItems="center" sx={{ flexGrow: 1 }}>
-              <Box
-                sx={{
-                  display: "grid",
-                  placeItems: "center",
-                  width: 38,
-                  height: 38,
-                  borderRadius: 2,
-                  backgroundColor: "primary.main",
-                  color: "#fff",
-                }}
-              >
-                <AccountBalanceWalletIcon fontSize="small" />
-              </Box>
-              <Box>
-                <Typography variant="subtitle1" fontWeight={800} lineHeight={1.1}>
-                  BankFlow
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  AI Banking Assistant
-                </Typography>
-              </Box>
-            </Stack>
-
-            <Stack direction="row" spacing={3} sx={{ display: { xs: "none", md: "flex" } }}>
-              {NAV_LINKS.map((link) => (
-                <Typography
-                  key={link.label}
-                  component="a"
-                  href={link.href}
-                  variant="body2"
-                  sx={{
-                    color: "text.secondary",
-                    fontWeight: 600,
-                    "&:hover": { color: "primary.main" },
-                  }}
-                >
-                  {link.label}
-                </Typography>
-              ))}
-            </Stack>
-
-            <Button component={RouterLink} to="/login" sx={{ display: { xs: "none", sm: "flex" } }}>
-              Login
-            </Button>
-            <Button variant="contained" onClick={() => (isAuthenticated ? goToApp() : navigate("/register"))}>
-              {isAuthenticated ? "Open App" : "Register"}
-            </Button>
-          </Toolbar>
-        </Container>
-      </AppBar>
+      <PublicHeader />
 
       {/* -------------------------------------------------------------- hero */}
       <Box
         sx={{
+          position: "relative",
+          overflow: "hidden",
           background:
-            "radial-gradient(1200px 520px at 15% 0%, #e8eefc 0%, #ffffff 60%), linear-gradient(180deg, #fbfcff 0%, #ffffff 100%)",
+            "radial-gradient(1100px 480px at 12% -5%, var(--bf-glow) 0%, var(--bf-shell) 58%), linear-gradient(180deg, var(--bf-panel) 0%, var(--bf-shell) 100%)",
           py: { xs: 6, md: 10 },
         }}
       >
+        <Box
+          aria-hidden
+          sx={{
+            position: "absolute",
+            top: -140,
+            right: -120,
+            width: 420,
+            height: 420,
+            borderRadius: "50%",
+            background: BRAND.gradient,
+            opacity: 0.12,
+            filter: "blur(10px)",
+          }}
+        />
         <Container maxWidth="lg">
           <Grid container spacing={6} alignItems="center">
             <Grid item xs={12} md={6}>
@@ -338,14 +284,14 @@ export default function Landing() {
                   "Explain EMI / KYC / credit score",
                 ].map((q) => (
                   <Stack key={q} direction="row" spacing={1.25} alignItems="center">
-                    <FiCheckCircle color="#1b3a8f" />
+                    <FiCheckCircle color="#16357f" />
                     <Typography variant="body2">{q}</Typography>
                   </Stack>
                 ))}
               </Stack>
             </Grid>
             <Grid item xs={12} md={6}>
-              <Card sx={{ backgroundColor: "#0f1d3d", color: "#fff", borderRadius: 4 }}>
+              <Card sx={{ backgroundColor: "#0b1531", color: "#fff", borderRadius: 4 }}>
                 <CardContent sx={{ p: 3 }}>
                   <Typography variant="h6" sx={{ mb: 2 }}>
                     Example AI session
@@ -455,37 +401,7 @@ export default function Landing() {
         </Container>
       </Box>
 
-      {/* ------------------------------------------------------------ footer */}
-      <Box sx={{ backgroundColor: "#0f1d3d", color: "#fff", py: 4 }}>
-        <Container maxWidth="lg">
-          <Stack direction={{ xs: "column", md: "row" }} justifyContent="space-between" spacing={2}>
-            <Stack direction="row" spacing={1.25} alignItems="center">
-              <IconButton size="small" sx={{ color: "#fff" }}>
-                <AccountBalanceWalletIcon fontSize="small" />
-              </IconButton>
-              <Typography variant="subtitle2">BankFlow - AI Banking Assistant (demo)</Typography>
-            </Stack>
-            <Stack direction="row" spacing={3} sx={{ flexWrap: "wrap" }}>
-              {NAV_LINKS.map((link) => (
-                <Typography
-                  key={link.label}
-                  component="a"
-                  href={link.href}
-                  variant="body2"
-                  sx={{ color: "rgba(255,255,255,.75)", "&:hover": { color: "#fff" } }}
-                >
-                  {link.label}
-                </Typography>
-              ))}
-            </Stack>
-          </Stack>
-          <Divider sx={{ my: 2, borderColor: "rgba(255,255,255,.15)" }} />
-          <Typography variant="caption" sx={{ color: "rgba(255,255,255,.6)" }}>
-            © {new Date().getFullYear()} BankFlow demo. All data is simulated and fictional. Built
-            with React and Django REST Framework.
-          </Typography>
-        </Container>
-      </Box>
+      <SiteFooter />
     </Box>
   );
 }

@@ -13,7 +13,9 @@ const bankingService = {
       .get("/transactions/export/", { params, responseType: "blob" })
       .then((r) => r.data),
 
-  getLoans: (params = {}) => api.get("/loans/", { params }).then((r) => r.data),
+  // The API paginates loan lists, so the page only needs the array of loans back.
+  getLoans: (params = {}) =>
+    api.get("/loans/", { params }).then((r) => r.data.results ?? r.data),
   getLoan: (id) => api.get(`/loans/${id}/`).then((r) => r.data),
   applyLoan: (payload) => api.post("/loans/", payload).then((r) => r.data),
 
