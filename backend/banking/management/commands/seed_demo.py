@@ -7,7 +7,8 @@ import random
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
+from django.db import connection
 from django.utils import timezone
 
 from assistant.models import ChatMessage
@@ -70,6 +71,12 @@ class Command(BaseCommand):
                             help="Delete existing demo data before seeding.")
 
     def handle(self, *args, **options):
+        if not self.database_is_ready():
+            raise CommandError(
+                "The database tables do not exist yet. Run 'python manage.py migrate' first, "
+                "then run 'python manage.py seed_demo --flush' again."
+            )
+
         random.seed(7)
         if options["flush"]:
             ChatMessage.objects.all().delete()
@@ -102,6 +109,18 @@ class Command(BaseCommand):
             self.stdout.write(f"Customer : {customer['email']} / {DEMO_PASSWORD}")
 
     # ------------------------------------------------------------------ steps
+    def database_is_ready(self):
+        """Give a helpful message instead of a raw SQL error on a fresh machine."""
+        existing = set(connection.introspection.table_names())
+        required = {
+            "users_user",
+            "banking_account",
+            "banking_transaction",
+            "banking_loan",
+            "assistant_chatmessage",
+        }
+        return required.issubset(existing)
+
     def create_admin(self):
         admin, created = User.objects.get_or_create(
             email="admin@bankflow.com",
