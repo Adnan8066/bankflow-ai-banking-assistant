@@ -1,7 +1,7 @@
 # BANKFLOW - AI BANKING ASSISTANT
 
 Complete source code of the project, headline-wise, in the order you create the files.
-Generated from 115 tracked files by tools/generate_full_code.py.
+Generated from 119 tracked files by tools/generate_full_code.py.
 
 > Demo application only. All banking data is fictional and no real money movement happens.
 
@@ -203,6 +203,10 @@ the questions instead.
 - Notifications with read / unread state and "mark all as read"
 - Profile: view and update name, phone, address, occupation, monthly income, and change the password
 - Light and dark mode, remembered between visits
+- Forgot password journey: request a reset link, choose a new password and sign in with it
+- Statement download from the account page, and CSV export of any filtered transaction list
+- Notifications are clickable and open the page they relate to
+- A pending loan application can be withdrawn before a bank employee decides on it
 
 **Bank employee / admin**
 
@@ -212,6 +216,8 @@ the questions instead.
 - Loan management: approve / activate / reject a demo loan (creates a customer notification)
 - Analytics dashboard: portfolio trend, category split, transaction count, active loan ratio
 - AI assistant monitoring: total questions, intent breakdown, provider split, full question log
+- User management: change a role, switch an account on or off, with protection against locking yourself out
+- Record a demo transaction for any customer, which updates the balance and notifies them
 
 ---
 
@@ -392,6 +398,8 @@ All customer endpoints require the header `Authorization: Bearer <access_token>`
 | POST | `/api/auth/login/` | Login, returns `access` + `refresh` |
 | POST | `/api/auth/refresh/` | Exchange a refresh token for a new access token |
 | POST | `/api/auth/change-password/` | Change the password after confirming the current one |
+| POST | `/api/auth/password-reset/` | Start a password reset (returns the link, since the demo has no mail server) |
+| POST | `/api/auth/password-reset/confirm/` | Finish the reset with the uid and token |
 
 **Customer**
 
@@ -405,6 +413,7 @@ All customer endpoints require the header `Authorization: Bearer <access_token>`
 | GET | `/api/transactions/export/` | Download the filtered transactions as a CSV file |
 | GET / POST | `/api/loans/` | List loans / submit a demo loan application |
 | GET | `/api/loans/<id>/` | Loan detail |
+| DELETE | `/api/loans/<id>/withdraw/` | Withdraw your own pending application |
 | POST | `/api/emi/` | Server-side EMI calculation |
 | GET | `/api/notifications/` | Notifications (`?unread=true` for unread only) |
 | PUT | `/api/notifications/<id>/` | Mark read / unread |
@@ -425,6 +434,8 @@ All customer endpoints require the header `Authorization: Bearer <access_token>`
 | GET | `/api/admin/loans/` | All loans with filters |
 | PATCH | `/api/admin/loans/<id>/` | `{ "status": "APPROVED" }` etc. (notifies the customer) |
 | GET | `/api/admin/users/` | User management table |
+| PATCH | `/api/admin/users/<id>/` | Change a role, or switch an account on or off |
+| POST | `/api/admin/transactions/create/` | Record a demo transaction for a customer |
 | GET | `/api/assistant/monitor/` | AI monitoring dashboard data |
 
 **AI request / response example**
@@ -963,12 +974,34 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.set_password(self.validated_data["new_password"])
         user.save(update_fields=["password"])
         return user
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, validators=[validate_password])
+    confirm_password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError(
+                {"confirm_password": "The two passwords do not match."}
+            )
+        return attrs
 ```
 
 ### backend/users/views.py
 
 ```python
 from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.auth import get_user_model
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -979,9 +1012,13 @@ from .models import CustomerProfile
 from .serializers import (
     ChangePasswordSerializer,
     CustomerProfileSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
     ProfileUpdateSerializer,
     RegisterSerializer,
 )
+
+User = get_user_model()
 
 
 class RegisterView(generics.CreateAPIView):
@@ -1055,6 +1092,67 @@ class SafeTokenRefreshView(TokenRefreshView):
                 {"detail": "This session is no longer valid. Please log in again."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+
+
+class PasswordResetRequestView(APIView):
+    """POST /api/auth/password-reset/ - start a password reset.
+
+    BankFlow has no email server, so the response includes the reset link and the
+    interface displays it on screen. A real deployment would email the same link
+    instead of returning it.
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = User.objects.filter(email__iexact=serializer.validated_data["email"]).first()
+
+        response = {
+            "message": (
+                "If that email belongs to an account, a reset link has been created. "
+                "Check your inbox."
+            ),
+            "demo_mode": True,
+        }
+        if user:
+            response["reset"] = {
+                "uid": urlsafe_base64_encode(force_bytes(user.pk)),
+                "token": default_token_generator.make_token(user),
+                "email": user.email,
+            }
+            response["message"] = (
+                "Account found. BankFlow has no email server, so use the reset link shown here."
+            )
+        return Response(response)
+
+
+class PasswordResetConfirmView(APIView):
+    """POST /api/auth/password-reset/confirm/ - finish the reset with the token."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        user = None
+        try:
+            user = User.objects.get(pk=force_str(urlsafe_base64_decode(data["uid"])))
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+
+        if user is None or not default_token_generator.check_token(user, data["token"]):
+            return Response(
+                {"detail": "This reset link is not valid or has already been used."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(data["new_password"])
+        user.save(update_fields=["password"])
+        return Response({"message": "Password updated. You can log in with your new password."})
 ```
 
 ### backend/users/urls/auth_urls.py
@@ -1063,13 +1161,21 @@ class SafeTokenRefreshView(TokenRefreshView):
 from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-from users.views import ChangePasswordView, RegisterView, SafeTokenRefreshView
+from users.views import (
+    ChangePasswordView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
+    RegisterView,
+    SafeTokenRefreshView,
+)
 
 urlpatterns = [
     path("register/", RegisterView.as_view(), name="register"),
     path("login/", TokenObtainPairView.as_view(), name="login"),
     path("refresh/", SafeTokenRefreshView.as_view(), name="token_refresh"),
     path("change-password/", ChangePasswordView.as_view(), name="change-password"),
+    path("password-reset/", PasswordResetRequestView.as_view(), name="password-reset"),
+    path("password-reset/confirm/", PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
 ]
 ```
 
@@ -1267,6 +1373,69 @@ class RefreshTokenTests(APITestCase):
     def test_refresh_with_a_nonsense_token_returns_401(self):
         response = self.client.post(reverse("token_refresh"), {"refresh": "not-a-real-token"})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class PasswordResetTests(APITestCase):
+    """The whole forgot password journey, from the request to logging in again."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="forgot@bankflow.com", password="Demo@12345", name="Forgot Password"
+        )
+
+    def test_request_for_a_known_email_returns_a_reset_link(self):
+        response = self.client.post(reverse("password-reset"), {"email": "forgot@bankflow.com"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("reset", response.data)
+        self.assertTrue(response.data["reset"]["token"])
+        self.assertTrue(response.data["reset"]["uid"])
+
+    def test_request_for_an_unknown_email_stays_generic(self):
+        response = self.client.post(reverse("password-reset"), {"email": "nobody@bankflow.com"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("reset", response.data)
+        self.assertIn("message", response.data)
+
+    def test_confirm_replaces_the_password_and_allows_login(self):
+        request = self.client.post(reverse("password-reset"), {"email": "forgot@bankflow.com"})
+        reset = request.data["reset"]
+
+        confirm = self.client.post(reverse("password-reset-confirm"), {
+            "uid": reset["uid"], "token": reset["token"],
+            "new_password": "Fresh@2026Pass", "confirm_password": "Fresh@2026Pass",
+        })
+        self.assertEqual(confirm.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Fresh@2026Pass"))
+
+        login = self.client.post(reverse("login"), {
+            "email": "forgot@bankflow.com", "password": "Fresh@2026Pass",
+        })
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+        self.assertIn("access", login.data)
+
+    def test_confirm_rejects_a_tampered_token(self):
+        request = self.client.post(reverse("password-reset"), {"email": "forgot@bankflow.com"})
+        reset = request.data["reset"]
+
+        confirm = self.client.post(reverse("password-reset-confirm"), {
+            "uid": reset["uid"], "token": "not-the-right-token",
+            "new_password": "Fresh@2026Pass", "confirm_password": "Fresh@2026Pass",
+        })
+        self.assertEqual(confirm.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Demo@12345"))
+
+    def test_confirm_rejects_mismatched_passwords(self):
+        request = self.client.post(reverse("password-reset"), {"email": "forgot@bankflow.com"})
+        reset = request.data["reset"]
+
+        confirm = self.client.post(reverse("password-reset-confirm"), {
+            "uid": reset["uid"], "token": reset["token"],
+            "new_password": "Fresh@2026Pass", "confirm_password": "Different@2026",
+        })
+        self.assertEqual(confirm.status_code, status.HTTP_400_BAD_REQUEST)
 ```
 
 ### backend/banking/models.py
@@ -1880,6 +2049,8 @@ def demo_transaction_seed():
 ```python
 from rest_framework import serializers
 
+from django.contrib.auth import get_user_model
+
 from .models import Account, Loan, Notification, Transaction
 from .services import calculate_emi
 
@@ -1995,6 +2166,30 @@ class EMICalculatorSerializer(serializers.Serializer):
     loan_amount = serializers.FloatField(min_value=1000)
     interest_rate = serializers.FloatField(min_value=0, max_value=50)
     tenure_months = serializers.IntegerField(min_value=1, max_value=480)
+
+
+class AdminTransactionCreateSerializer(serializers.Serializer):
+    """A bank employee records a correction or a demo movement for one customer."""
+
+    customer = serializers.IntegerField()
+    amount = serializers.FloatField(min_value=1, max_value=10000000)
+    transaction_type = serializers.ChoiceField(choices=Transaction.Type.choices)
+    category = serializers.ChoiceField(choices=Transaction.Category.choices)
+    description = serializers.CharField(max_length=200)
+    date = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class AdminUserUpdateSerializer(serializers.Serializer):
+    """Role and access changes for the user management screen.
+
+    Using a serializer matters here: a form post sends "false" as text, and a plain
+    bool() call would read that as True.
+    """
+
+    is_active = serializers.BooleanField(required=False)
+    role = serializers.ChoiceField(
+        choices=[choice[0] for choice in get_user_model().Role.choices], required=False
+    )
 ```
 
 ### backend/banking/views.py
@@ -2180,6 +2375,26 @@ class LoanDetailView(generics.RetrieveAPIView):
         return Loan.objects.filter(user=self.request.user)
 
 
+class LoanWithdrawView(APIView):
+    """DELETE /api/loans/<id>/withdraw/ - cancel your own pending application."""
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        loan = Loan.objects.filter(pk=pk, user=request.user).first()
+        if not loan:
+            return Response({"detail": "Loan application not found."},
+                            status=status.HTTP_404_NOT_FOUND)
+        if loan.status != Loan.Status.PENDING:
+            return Response(
+                {"detail": "Only an application that is still pending can be withdrawn."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        loan_id = loan.loan_id
+        loan.delete()
+        return Response({"message": f"Application {loan_id} was withdrawn."})
+
+
 class NotificationListView(generics.ListAPIView):
     """GET /api/notifications/ - ?unread=true for unread only."""
 
@@ -2245,6 +2460,7 @@ class EMICalculatorView(APIView):
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Sum
 from django.utils.dateparse import parse_date
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -2254,12 +2470,14 @@ from users.serializers import CustomerProfileSerializer
 
 from .models import Account, Loan, Notification, Transaction, account_balance
 from .serializers import AccountSerializer, LoanSerializer, TransactionSerializer
+from .serializers import AdminTransactionCreateSerializer, AdminUserUpdateSerializer
 from .services import (
     aware,
     customer_transactions,
     format_inr,
     get_dashboard,
     loan_status_breakdown,
+    record_transaction,
 )
 
 User = get_user_model()
@@ -2543,6 +2761,101 @@ class AdminUserListView(APIView):
         })
 
 
+class AdminUserDetailView(APIView):
+    """PATCH /api/admin/users/<id>/ - activate, deactivate or change a user's role."""
+
+    permission_classes = [IsBankStaff]
+
+    def patch(self, request, pk):
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminUserUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        changes = serializer.validated_data
+
+        if "is_active" in changes:
+            new_state = changes["is_active"]
+            if user.pk == request.user.pk and not new_state:
+                return Response(
+                    {"detail": "You cannot deactivate the account you are signed in with."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.is_active = new_state
+
+        if "role" in changes:
+            role = changes["role"]
+            if user.pk == request.user.pk and role != User.Role.ADMIN:
+                return Response(
+                    {"detail": "You cannot remove your own bank employee access."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.role = role
+            user.is_staff = role == User.Role.ADMIN
+
+        user.save()
+        return Response({
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "role_display": user.get_role_display(),
+            "is_active": user.is_active,
+            "last_login": user.last_login.isoformat() if user.last_login else None,
+            "joined": user.date_joined.isoformat(),
+        })
+
+
+class AdminTransactionCreateView(APIView):
+    """POST /api/admin/transactions/ - record a demo transaction for a customer."""
+
+    permission_classes = [IsBankStaff]
+
+    def post(self, request):
+        serializer = AdminTransactionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        customer = User.objects.filter(pk=data["customer"]).first()
+        if not customer:
+            return Response({"detail": "Choose a customer first."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        account = Account.objects.filter(user=customer).first()
+        if not account:
+            return Response({"detail": "That customer has no demo account."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        amount = data["amount"]
+        if (data["transaction_type"] == Transaction.Type.DEBIT
+                and float(account.balance) < amount):
+            return Response(
+                {"detail": "That debit is larger than the customer's balance."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        txn = record_transaction(
+            account,
+            amount=amount,
+            description=data["description"],
+            category=data["category"],
+            transaction_type=data["transaction_type"],
+            when=data.get("date"),
+        )
+        Notification.objects.create(
+            user=customer,
+            title=(
+                f"{'Credit' if data['transaction_type'] == 'CREDIT' else 'Debit'} "
+                f"of ₹{amount:,.0f}"
+            ),
+            message=(
+                f"{data['description']} was added to your demo account by a bank employee."
+            ),
+            notification_type=Notification.NotificationType.TRANSACTION,
+        )
+        return Response(TransactionSerializer(txn).data, status=status.HTTP_201_CREATED)
+
+
 class AdminOverviewView(APIView):
     """GET /api/admin/analytics/overview/ - the 6 KPI cards on the admin dashboard."""
 
@@ -2574,6 +2887,7 @@ from banking.views import (
     EMICalculatorView,
     LoanDetailView,
     LoanListCreateView,
+    LoanWithdrawView,
     MarkAllNotificationsReadView,
     NotificationListView,
     NotificationUpdateView,
@@ -2590,6 +2904,7 @@ urlpatterns = [
     path("transactions/<int:pk>/", TransactionDetailView.as_view(), name="transaction-detail"),
     path("loans/", LoanListCreateView.as_view(), name="loan-list"),
     path("loans/<int:pk>/", LoanDetailView.as_view(), name="loan-detail"),
+    path("loans/<int:pk>/withdraw/", LoanWithdrawView.as_view(), name="loan-withdraw"),
     path("emi/", EMICalculatorView.as_view(), name="emi-calculator"),
     path("notifications/", NotificationListView.as_view(), name="notification-list"),
     path("notifications/read-all/", MarkAllNotificationsReadView.as_view(),
@@ -2610,7 +2925,9 @@ from banking.admin_views import (
     AdminLoanListView,
     AdminLoanUpdateView,
     AdminOverviewView,
+    AdminTransactionCreateView,
     AdminTransactionListView,
+    AdminUserDetailView,
     AdminUserListView,
 )
 
@@ -2620,9 +2937,12 @@ urlpatterns = [
     path("customers/", AdminCustomerListView.as_view(), name="admin-customers"),
     path("customers/<int:pk>/", AdminCustomerDetailView.as_view(), name="admin-customer-detail"),
     path("transactions/", AdminTransactionListView.as_view(), name="admin-transactions"),
+    path("transactions/create/", AdminTransactionCreateView.as_view(),
+         name="admin-transaction-create"),
     path("loans/", AdminLoanListView.as_view(), name="admin-loans"),
     path("loans/<int:pk>/", AdminLoanUpdateView.as_view(), name="admin-loan-update"),
     path("users/", AdminUserListView.as_view(), name="admin-users"),
+    path("users/<int:pk>/", AdminUserDetailView.as_view(), name="admin-user-detail"),
 ]
 ```
 
@@ -3157,6 +3477,103 @@ class AdminApiTests(APITestCase):
         analytics = self.client.get("/api/admin/analytics/")
         self.assertEqual(len(analytics.data["transaction_type_split"]), 2)
         self.assertEqual(len(analytics.data["loan_status_breakdown"]), 5)
+
+
+class LoanWithdrawTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="withdraw@bankflow.com", password="Demo@12345", name="Withdraw User"
+        )
+        bootstrap_customer(self.user)
+        self.client.force_authenticate(self.user)
+        self.loan = self.client.post("/api/loans/", {
+            "loan_type": "PERSONAL", "amount": 100000, "interest_rate": 11,
+            "tenure_months": 24, "purpose": "To be withdrawn",
+            "monthly_income": 50000, "employment_type": "SALARIED",
+        }).data
+
+    def test_a_pending_application_can_be_withdrawn(self):
+        response = self.client.delete(f"/api/loans/{self.loan['id']}/withdraw/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Loan.objects.filter(pk=self.loan["id"]).exists())
+
+    def test_a_decided_application_cannot_be_withdrawn(self):
+        loan = Loan.objects.get(pk=self.loan["id"])
+        loan.status = Loan.Status.ACTIVE
+        loan.save(update_fields=["status"])
+
+        response = self.client.delete(f"/api/loans/{self.loan['id']}/withdraw/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(Loan.objects.filter(pk=self.loan["id"]).exists())
+
+    def test_another_customer_cannot_withdraw_your_application(self):
+        other = User.objects.create_user(
+            email="other@bankflow.com", password="Demo@12345", name="Other User"
+        )
+        self.client.force_authenticate(other)
+        response = self.client.delete(f"/api/loans/{self.loan['id']}/withdraw/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class AdminWriteTests(APITestCase):
+    """Bank employees can record a demo transaction and manage user access."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            email="staff@bankflow.com", password="Admin@12345",
+            name="Staff Member", role=User.Role.ADMIN,
+        )
+        self.customer = User.objects.create_user(
+            email="write@bankflow.com", password="Demo@12345", name="Write Customer"
+        )
+        self.account = bootstrap_customer(self.customer)
+        self.account.balance = 10000
+        self.account.save(update_fields=["balance"])
+        self.client.force_authenticate(self.admin)
+
+    def test_employee_records_a_debit_and_the_balance_drops(self):
+        response = self.client.post("/api/admin/transactions/create/", {
+            "customer": self.customer.id, "amount": 1500, "transaction_type": "DEBIT",
+            "category": "Bills", "description": "Branch correction",
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.account.refresh_from_db()
+        self.assertEqual(float(self.account.balance), 8500.0)
+        self.assertTrue(Notification.objects.filter(user=self.customer).exists())
+
+    def test_employee_cannot_overdraw_the_demo_account(self):
+        response = self.client.post("/api/admin/transactions/create/", {
+            "customer": self.customer.id, "amount": 999999, "transaction_type": "DEBIT",
+            "category": "Other", "description": "Too large",
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.account.refresh_from_db()
+        self.assertEqual(float(self.account.balance), 10000.0)
+
+    def test_employee_can_deactivate_and_reactivate_a_customer(self):
+        off = self.client.patch(f"/api/admin/users/{self.customer.id}/", {"is_active": False})
+        self.assertEqual(off.status_code, status.HTTP_200_OK)
+        self.customer.refresh_from_db()
+        self.assertFalse(self.customer.is_active)
+
+        on = self.client.patch(f"/api/admin/users/{self.customer.id}/", {"is_active": True})
+        self.assertEqual(on.status_code, status.HTTP_200_OK)
+        self.customer.refresh_from_db()
+        self.assertTrue(self.customer.is_active)
+
+    def test_employee_cannot_lock_themselves_out(self):
+        response = self.client.patch(f"/api/admin/users/{self.admin.id}/", {"is_active": False})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_a_customer_cannot_record_transactions(self):
+        self.client.force_authenticate(self.customer)
+        response = self.client.post("/api/admin/transactions/create/", {
+            "customer": self.customer.id, "amount": 100, "transaction_type": "CREDIT",
+            "category": "Other", "description": "Should not work",
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 ```
 
 ### backend/assistant/models.py
@@ -4828,6 +5245,8 @@ import AIAssistant from "./pages/AIAssistant.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import Profile from "./pages/Profile.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
+import ResetPassword from "./pages/ResetPassword.jsx";
 
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import CustomerManagement from "./pages/admin/CustomerManagement.jsx";
@@ -4835,6 +5254,7 @@ import TransactionManagement from "./pages/admin/TransactionManagement.jsx";
 import LoanManagement from "./pages/admin/LoanManagement.jsx";
 import AdminAnalytics from "./pages/admin/AdminAnalytics.jsx";
 import AIMonitor from "./pages/admin/AIMonitor.jsx";
+import UserManagement from "./pages/admin/UserManagement.jsx";
 
 /**
  * Route map
@@ -4848,6 +5268,8 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
@@ -4872,6 +5294,7 @@ export default function App() {
           <Route path="/admin/loans" element={<LoanManagement />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/ai-monitor" element={<AIMonitor />} />
+          <Route path="/admin/users" element={<UserManagement />} />
         </Route>
       </Route>
 
@@ -5014,6 +5437,16 @@ const authService = {
     return data;
   },
 
+  async requestPasswordReset(email) {
+    const { data } = await api.post("/auth/password-reset/", { email });
+    return data;
+  },
+
+  async confirmPasswordReset(payload) {
+    const { data } = await api.post("/auth/password-reset/confirm/", payload);
+    return data;
+  },
+
   logout() {
     tokenStore.clear();
   },
@@ -5045,6 +5478,7 @@ const bankingService = {
     api.get("/loans/", { params }).then((r) => r.data.results ?? r.data),
   getLoan: (id) => api.get(`/loans/${id}/`).then((r) => r.data),
   applyLoan: (payload) => api.post("/loans/", payload).then((r) => r.data),
+  withdrawLoan: (id) => api.delete(`/loans/${id}/withdraw/`).then((r) => r.data),
 
   calculateEmi: (payload) => api.post("/emi/", payload).then((r) => r.data),
 
@@ -5089,6 +5523,9 @@ const adminService = {
   updateLoanStatus: (id, status) =>
     api.patch(`/admin/loans/${id}/`, { status }).then((r) => r.data),
   users: () => api.get("/admin/users/").then((r) => r.data),
+  updateUser: (id, payload) => api.patch(`/admin/users/${id}/`, payload).then((r) => r.data),
+  createTransaction: (payload) =>
+    api.post("/admin/transactions/create/", payload).then((r) => r.data),
   aiMonitor: (params = {}) => api.get("/assistant/monitor/", { params }).then((r) => r.data),
 };
 
@@ -5417,6 +5854,7 @@ const PAGES = {
   "/admin/loans": { title: "Loan Management", subtitle: "Review and decide on applications" },
   "/admin/analytics": { title: "Analytics", subtitle: "Portfolio trends and totals" },
   "/admin/ai-monitor": { title: "AI Monitoring", subtitle: "What customers ask the assistant" },
+  "/admin/users": { title: "User Management", subtitle: "Roles and account access" },
 };
 
 /** Application header: page context on the left, quick actions and the account menu on the right. */
@@ -5640,6 +6078,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import GroupIcon from "@mui/icons-material/Group";
 import InsightsIcon from "@mui/icons-material/Insights";
 import MonitorHeartIcon from "@mui/icons-material/MonitorHeart";
+import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import LogoutIcon from "@mui/icons-material/Logout";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -5669,6 +6108,7 @@ const ADMIN_LINKS = [
   { to: "/admin/loans", label: "Loan Management", icon: <RequestQuoteIcon /> },
   { to: "/admin/analytics", label: "Analytics", icon: <InsightsIcon /> },
   { to: "/admin/ai-monitor", label: "AI Monitoring", icon: <MonitorHeartIcon /> },
+  { to: "/admin/users", label: "User Management", icon: <ManageAccountsIcon /> },
 ];
 
 const itemSx = {
@@ -6458,6 +6898,7 @@ import { Link as RouterLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import { BRAND } from "../branding.js";
+import { DEMO_ACCOUNTS } from "../branding.js";
 import PublicHeader from "../components/PublicHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
 
@@ -6809,17 +7250,29 @@ export default function Landing() {
                   <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
                     Demo logins
                   </Typography>
-                  {[
-                    ["Customer", "mohammed@bankflow.com", "Demo@12345"],
-                    ["Bank employee", "admin@bankflow.com", "Admin@12345"],
-                  ].map(([role, email, password]) => (
-                    <Box key={email} sx={{ mb: 1.5 }}>
+                  {DEMO_ACCOUNTS.map((account) => (
+                    <Box
+                      key={account.email}
+                      onClick={() =>
+                        navigate(
+                          `/login?demo=${account.role === "Bank employee" ? "admin" : "customer"}`
+                        )
+                      }
+                      sx={{
+                        mb: 1.5,
+                        p: 1,
+                        borderRadius: 2,
+                        cursor: "pointer",
+                        transition: "background-color .18s ease",
+                        "&:hover": { backgroundColor: "var(--bf-tint)" },
+                      }}
+                    >
                       <Typography variant="caption" color="text.secondary">
-                        {role}
+                        {account.role} - click to sign in
                       </Typography>
                       <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap" }}>
-                        <Chip size="small" label={email} variant="outlined" />
-                        <Chip size="small" label={password} variant="outlined" />
+                        <Chip size="small" label={account.email} variant="outlined" />
+                        <Chip size="small" label={account.password} variant="outlined" />
                       </Stack>
                     </Box>
                   ))}
@@ -6860,7 +7313,7 @@ import {
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
-import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../services/api";
@@ -6875,11 +7328,27 @@ export default function Login() {
   const { login, isAuthenticated, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [params] = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const sessionExpired = new URLSearchParams(location.search).get("session") === "expired";
+
+  // The landing page and the footer link here with ?demo=customer or ?demo=admin,
+  // and ?email= fills the form, so those links are a real shortcut.
+  useEffect(() => {
+    const demo = params.get("demo");
+    const email = params.get("email");
+    if (demo) {
+      const account = DEMO_ACCOUNTS.find((item) =>
+        demo === "admin" ? item.label === "Bank employee" : item.label === "Customer"
+      );
+      if (account) setForm({ email: account.email, password: account.password });
+    } else if (email) {
+      setForm((prev) => ({ ...prev, email }));
+    }
+  }, [params]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -6979,6 +7448,12 @@ export default function Login() {
                 ),
               }}
             />
+
+            <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1 }}>
+              <Link component={RouterLink} to="/forgot-password" variant="body2" fontWeight={600}>
+                Forgot password?
+              </Link>
+            </Stack>
 
             <Button
               type="submit"
@@ -7322,6 +7797,7 @@ import {
   formatDate,
   greeting,
 } from "../utils/formatCurrency.js";
+import { notificationTarget } from "../utils/download.js";
 
 const QUICK_ACTIONS = [
   { label: "View Transactions", icon: <ReceiptLongIcon />, to: "/transactions" },
@@ -7734,7 +8210,14 @@ export default function Dashboard() {
                     direction="row"
                     spacing={1.5}
                     alignItems="flex-start"
-                    sx={{ p: 1.25, borderRadius: 2, backgroundColor: item.is_read ? "var(--bf-panel)" : "var(--bf-tint)" }}
+                    onClick={() => navigate(notificationTarget(item.notification_type))}
+                    sx={{
+                      p: 1.25,
+                      borderRadius: 2,
+                      cursor: "pointer",
+                      backgroundColor: item.is_read ? "var(--bf-panel)" : "var(--bf-tint)",
+                      "&:hover": { backgroundColor: "var(--bf-surface)" },
+                    }}
                   >
                     <NotificationsActiveIcon fontSize="small" color="primary" />
                     <Box>
@@ -7775,6 +8258,7 @@ import {
   Chip,
   Divider,
   Grid,
+  Snackbar,
   Stack,
   Typography,
 } from "@mui/material";
@@ -7782,12 +8266,14 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import CalculateIcon from "@mui/icons-material/Calculate";
+import DownloadIcon from "@mui/icons-material/Download";
 import { useNavigate } from "react-router-dom";
 
 import { ErrorAlert, Loader, PageHeader, SectionCard, StatusChip } from "../components/Common.jsx";
 import bankingService from "../services/bankingService";
 import { getErrorMessage } from "../services/api";
 import { formatCurrency, formatDate } from "../utils/formatCurrency.js";
+import { downloadBlob } from "../utils/download.js";
 
 function DetailRow({ label, value, copyable }) {
   const [copied, setCopied] = useState(false);
@@ -7826,6 +8312,8 @@ export default function Account() {
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [snack, setSnack] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -7842,6 +8330,20 @@ export default function Account() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const downloadStatement = async () => {
+    setDownloading(true);
+    setError("");
+    try {
+      const blob = await bankingService.exportTransactions({});
+      downloadBlob(blob, "bankflow-statement.csv");
+      setSnack("Your demo statement is downloading as a CSV file.");
+    } catch {
+      setError("The statement could not be created. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (loading) return <Loader label="Loading account details..." />;
 
@@ -7918,6 +8420,17 @@ export default function Account() {
                 EMI calculator
               </Button>
             </Stack>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={downloadStatement}
+              disabled={downloading}
+              sx={{ mt: 1.5 }}
+            >
+              {downloading ? "Preparing statement..." : "Download statement (CSV)"}
+            </Button>
           </Grid>
 
           <Grid item xs={12} md={7}>
@@ -7953,6 +8466,13 @@ export default function Account() {
           </Grid>
         </Grid>
       )}
+
+      <Snackbar
+        open={Boolean(snack)}
+        autoHideDuration={3500}
+        onClose={() => setSnack("")}
+        message={snack}
+      />
     </Box>
   );
 }
@@ -7986,6 +8506,7 @@ import { ErrorAlert, PageHeader } from "../components/Common.jsx";
 import bankingService from "../services/bankingService";
 import { getErrorMessage } from "../services/api";
 import { TRANSACTION_CATEGORIES, formatCurrency } from "../utils/formatCurrency.js";
+import { downloadBlob } from "../utils/download.js";
 
 const EMPTY_FILTERS = {
   search: "",
@@ -8073,20 +8594,7 @@ export default function Transactions() {
         end_date: filters.end_date || undefined,
         ordering: filters.ordering,
       });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "bankflow-transactions.csv";
-      link.rel = "noopener";
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      // Releasing the blob immediately can cancel the download in some browsers,
-      // so the link and the object URL are cleaned up a moment later.
-      setTimeout(() => {
-        link.remove();
-        URL.revokeObjectURL(url);
-      }, 4000);
+      downloadBlob(blob, "bankflow-transactions.csv");
     } catch (err) {
       setError("The CSV could not be created. Please try again.");
     } finally {
@@ -8788,13 +9296,19 @@ export default function Loans() {
 import { useCallback, useEffect, useState } from "react";
 import {
   Box,
+  Alert,
   Button,
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   Grid,
   LinearProgress,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -8805,6 +9319,7 @@ import {
   Typography,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { ErrorAlert, Loader, PageHeader, SectionCard, StatusChip } from "../components/Common.jsx";
@@ -8819,6 +9334,9 @@ export default function LoanDetails() {
   const [loan, setLoan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [snack, setSnack] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -8835,6 +9353,21 @@ export default function LoanDetails() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const withdraw = async () => {
+    setWithdrawing(true);
+    try {
+      const result = await bankingService.withdrawLoan(id);
+      setSnack(result.message || "Application withdrawn.");
+      setConfirmOpen(false);
+      setTimeout(() => navigate("/loans"), 1600);
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setConfirmOpen(false);
+    } finally {
+      setWithdrawing(false);
+    }
+  };
 
   if (loading) return <Loader label="Loading loan details..." />;
 
@@ -8858,11 +9391,29 @@ export default function LoanDetails() {
         title={loan.loan_type_display}
         subtitle={`Loan ID ${loan.loan_id} - applied ${formatDate(loan.applied_at)}`}
         action={
-          <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/loans")}>
-            Back to loans
-          </Button>
+          <Stack direction="row" spacing={1.5}>
+            {loan.status === "PENDING" && (
+              <Button
+                color="error"
+                variant="outlined"
+                startIcon={<DeleteOutlineIcon />}
+                onClick={() => setConfirmOpen(true)}
+              >
+                Withdraw application
+              </Button>
+            )}
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/loans")}>
+              Back to loans
+            </Button>
+          </Stack>
         }
       />
+
+      {snack && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSnack("")}>
+          {snack}
+        </Alert>
+      )}
 
       <Grid container spacing={2.5}>
         <Grid item xs={12} md={4}>
@@ -8998,6 +9549,29 @@ export default function LoanDetails() {
           </SectionCard>
         </Grid>
       </Grid>
+
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Withdraw this application?</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary">
+            {loan.loan_type_display} {loan.loan_id} for {formatCurrency(loan.amount)} will be
+            removed from your demo account. You can apply again at any time.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setConfirmOpen(false)}>Keep application</Button>
+          <Button color="error" variant="contained" onClick={withdraw} disabled={withdrawing}>
+            {withdrawing ? "Withdrawing..." : "Withdraw"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={Boolean(snack)}
+        autoHideDuration={4000}
+        onClose={() => setSnack("")}
+        message={snack}
+      />
     </Box>
   );
 }
@@ -9702,11 +10276,14 @@ import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
 import InsightsIcon from "@mui/icons-material/Insights";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import { useNavigate } from "react-router-dom";
 
 import { EmptyState, ErrorAlert, Loader, PageHeader } from "../components/Common.jsx";
 import bankingService from "../services/bankingService";
 import { getErrorMessage } from "../services/api";
 import { relativeTime } from "../utils/formatCurrency.js";
+import { notificationTarget } from "../utils/download.js";
 
 const ICONS = {
   TRANSACTION: <PaymentsIcon />,
@@ -9717,6 +10294,7 @@ const ICONS = {
 };
 
 export default function Notifications() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [tab, setTab] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -9806,11 +10384,14 @@ export default function Notifications() {
             <Grid item xs={12} key={item.id}>
               <Paper
                 variant="outlined"
+                onClick={() => navigate(notificationTarget(item.notification_type))}
                 sx={{
                   p: 2,
                   borderRadius: 3,
+                  cursor: "pointer",
                   borderLeft: item.is_read ? "4px solid var(--bf-border)" : "4px solid #16357f",
                   backgroundColor: item.is_read ? "var(--bf-paper)" : "var(--bf-panel)",
+                  "&:hover": { borderColor: "primary.main" },
                 }}
               >
                 <Stack direction="row" spacing={2} alignItems="flex-start">
@@ -9848,8 +10429,23 @@ export default function Notifications() {
                     </Typography>
                   </Box>
                   <Tooltip title={item.is_read ? "Mark as unread" : "Mark as read"}>
-                    <IconButton onClick={() => toggleRead(item)}>
+                    <IconButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleRead(item);
+                      }}
+                    >
                       {item.is_read ? <MarkEmailReadIcon color="disabled" /> : <MarkEmailReadIcon color="primary" />}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Open the related page">
+                    <IconButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        navigate(notificationTarget(item.notification_type));
+                      }}
+                    >
+                      <ArrowForwardIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                 </Stack>
@@ -10850,25 +11446,42 @@ export default function CustomerManagement() {
 ```jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Box,
+  Button,
   Card,
   CardContent,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Grid,
   InputAdornment,
   MenuItem,
   Paper,
   Stack,
+  Snackbar,
   TablePagination,
   TextField,
   Typography,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 
 import TransactionTable from "../../components/TransactionTable.jsx";
 import { ErrorAlert, PageHeader } from "../../components/Common.jsx";
 import adminService from "../../services/adminService";
 import { getErrorMessage } from "../../services/api";
 import { TRANSACTION_CATEGORIES, formatCurrency } from "../../utils/formatCurrency.js";
+
+const EMPTY_FORM = {
+  customer: "",
+  amount: 1500,
+  transaction_type: "DEBIT",
+  category: "Other",
+  description: "",
+  date: "",
+};
 
 export default function TransactionManagement() {
   const [filters, setFilters] = useState({
@@ -10884,6 +11497,12 @@ export default function TransactionManagement() {
   const [data, setData] = useState({ results: [], count: 0, summary: null });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [customers, setCustomers] = useState([]);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [formError, setFormError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [snack, setSnack] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(filters.search), 400);
@@ -10920,11 +11539,58 @@ export default function TransactionManagement() {
     load();
   }, [load]);
 
+  const openDialog = async () => {
+    setForm(EMPTY_FORM);
+    setFormError("");
+    setDialogOpen(true);
+    try {
+      const data = await adminService.customers();
+      setCustomers(data.results);
+    } catch (err) {
+      setFormError(getErrorMessage(err));
+    }
+  };
+
+  const save = async () => {
+    setFormError("");
+    if (!form.customer) {
+      setFormError("Choose the customer this transaction belongs to.");
+      return;
+    }
+    if (!form.description.trim()) {
+      setFormError("Add a short description.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await adminService.createTransaction({
+        customer: Number(form.customer),
+        amount: Number(form.amount),
+        transaction_type: form.transaction_type,
+        category: form.category,
+        description: form.description,
+        ...(form.date ? { date: `${form.date}T12:00:00` } : {}),
+      });
+      setDialogOpen(false);
+      setSnack("Demo transaction recorded and the account balance updated.");
+      await load();
+    } catch (err) {
+      setFormError(getErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Box>
       <PageHeader
         title="Transaction Management"
         subtitle="Every simulated transaction across all demo customers."
+        action={
+          <Button variant="contained" startIcon={<AddCircleOutlineIcon />} onClick={openDialog}>
+            Record a transaction
+          </Button>
+        }
       />
 
       <ErrorAlert message={error} onRetry={load} />
@@ -11066,9 +11732,106 @@ export default function TransactionManagement() {
 
       <Stack sx={{ mt: 2 }}>
         <Typography variant="caption" color="text.secondary">
-          Transactions are read-only in the bank employee area - this demo never moves real money.
+          A recorded transaction updates the demo balance and notifies the customer. No real money
+          moves anywhere in this project.
         </Typography>
       </Stack>
+
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Record a demo transaction</DialogTitle>
+        <DialogContent dividers>
+          {formError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {formError}
+            </Alert>
+          )}
+          <Grid container spacing={2}>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                select
+                label="Customer"
+                value={form.customer}
+                onChange={(event) => setForm({ ...form, customer: event.target.value })}
+              >
+                {customers.map((customer) => (
+                  <MenuItem key={customer.id} value={customer.id}>
+                    {customer.name} - {customer.masked_account_number} ({formatCurrency(customer.balance)})
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="number"
+                label="Amount"
+                value={form.amount}
+                onChange={(event) => setForm({ ...form, amount: Number(event.target.value) })}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                select
+                label="Type"
+                value={form.transaction_type}
+                onChange={(event) => setForm({ ...form, transaction_type: event.target.value })}
+              >
+                <MenuItem value="DEBIT">Debit (money out)</MenuItem>
+                <MenuItem value="CREDIT">Credit (money in)</MenuItem>
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                select
+                label="Category"
+                value={form.category}
+                onChange={(event) => setForm({ ...form, category: event.target.value })}
+              >
+                {TRANSACTION_CATEGORIES.map((category) => (
+                  <MenuItem key={category} value={category}>
+                    {category}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                type="date"
+                label="Date (optional)"
+                InputLabelProps={{ shrink: true }}
+                value={form.date}
+                onChange={(event) => setForm({ ...form, date: event.target.value })}
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                label="Description"
+                placeholder="e.g. Branch correction - ATM reconciliation"
+                value={form.description}
+                onChange={(event) => setForm({ ...form, description: event.target.value })}
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={save} disabled={saving}>
+            {saving ? "Saving..." : "Record transaction"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={Boolean(snack)}
+        autoHideDuration={4000}
+        onClose={() => setSnack("")}
+        message={snack}
+      />
     </Box>
   );
 }
@@ -15205,6 +15968,7 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 
 import { BRAND, DEMO_ACCOUNTS, FOOTER_LINKS } from "../branding.js";
+import { Link as RouterLink } from "react-router-dom";
 import BrandLogo from "./BrandLogo.jsx";
 
 const muted = "rgba(255,255,255,.68)";
@@ -15335,9 +16099,14 @@ export default function SiteFooter({ variant = "full" }) {
 
           <FooterColumn title="Demo accounts">
             {DEMO_ACCOUNTS.map((account) => (
-              <Box key={account.email}>
+              <Box
+                key={account.email}
+                component={RouterLink}
+                to={`/login?demo=${account.role === "Bank employee" ? "admin" : "customer"}`}
+                sx={{ display: "block", textDecoration: "none", "&:hover p": { color: "#fff" } }}
+              >
                 <Typography variant="caption" sx={{ color: "rgba(255,255,255,.5)" }}>
-                  {account.role}
+                  {account.role} - click to sign in
                 </Typography>
                 <Typography variant="body2" sx={{ color: muted, fontSize: 13 }}>
                   {account.email}
@@ -15431,6 +16200,619 @@ export function ColorModeProvider({ children }) {
 
 export function useColorMode() {
   return useContext(ColorModeContext);
+}
+```
+
+### frontend/src/pages/ForgotPassword.jsx
+
+```jsx
+import { useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  Link,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+import MarkEmailReadOutlinedIcon from "@mui/icons-material/MarkEmailReadOutlined";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+
+import BrandLogo from "../components/BrandLogo.jsx";
+import authService from "../services/authService";
+import { getErrorMessage } from "../services/api";
+
+export default function ForgotPassword() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      setError("Enter the email address you registered with.");
+      return;
+    }
+    setLoading(true);
+    try {
+      setResult(await authService.requestPasswordReset(email));
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        p: 2,
+        background:
+          "radial-gradient(900px 420px at 20% 10%, var(--bf-glow) 0%, var(--bf-shell) 55%), var(--bf-shell)",
+      }}
+    >
+      <Card sx={{ width: "100%", maxWidth: 460 }}>
+        <CardContent sx={{ p: { xs: 3, md: 4 } }}>
+          <Box sx={{ mb: 3 }}>
+            <BrandLogo size={40} subtitle="Password help" />
+          </Box>
+
+          <Typography variant="h5" sx={{ mb: 0.5 }}>
+            Forgot your password?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Enter your email address and we will create a reset link for your demo account.
+          </Typography>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {result ? (
+            <Stack spacing={2}>
+              <Alert severity={result.reset ? "success" : "info"}>{result.message}</Alert>
+
+              {result.reset && (
+                <>
+                  <Typography variant="body2" color="text.secondary">
+                    BankFlow has no mail server, so the link is shown here instead of being
+                    emailed. Choose a new password and you are back in.
+                  </Typography>
+                  <Box sx={{ p: 2, borderRadius: 3, backgroundColor: "var(--bf-surface)" }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Reset code for {result.reset.email}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ fontFamily: "monospace", wordBreak: "break-all", mt: 0.5 }}
+                    >
+                      {result.reset.uid}.{result.reset.token}
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    onClick={() =>
+                      navigate(
+                        `/reset-password?uid=${result.reset.uid}&token=${result.reset.token}`
+                      )
+                    }
+                  >
+                    Choose a new password
+                  </Button>
+                </>
+              )}
+            </Stack>
+          ) : (
+            <form onSubmit={handleSubmit} noValidate>
+              <TextField
+                fullWidth
+                label="Email"
+                type="email"
+                autoComplete="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                size="large"
+                disabled={loading}
+                sx={{ mt: 3 }}
+                startIcon={<MarkEmailReadOutlinedIcon />}
+              >
+                {loading ? "Checking..." : "Create reset link"}
+              </Button>
+            </form>
+          )}
+
+          <Divider sx={{ my: 3 }} />
+          <Stack direction="row" spacing={1} justifyContent="center" alignItems="center">
+            <Typography variant="body2" color="text.secondary">
+              Remembered it?
+            </Typography>
+            <Link component={RouterLink} to="/login" fontWeight={700}>
+              Back to login
+            </Link>
+            <Chip size="small" variant="outlined" label="Demo" />
+          </Stack>
+        </CardContent>
+      </Card>
+    </Box>
+  );
+}
+```
+
+### frontend/src/pages/ResetPassword.jsx
+
+```jsx
+import { useState } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Divider,
+  Link,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+import LockResetIcon from "@mui/icons-material/LockReset";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router-dom";
+
+import BrandLogo from "../components/BrandLogo.jsx";
+import authService from "../services/authService";
+import { getErrorMessage } from "../services/api";
+
+export default function ResetPassword() {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const uid = params.get("uid") || "";
+  const token = params.get("token") || "";
+
+  const [form, setForm] = useState({ new_password: "", confirm_password: "" });
+  const [error, setError] = useState("");
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setError("");
+    const nextErrors = {};
+    if (form.new_password.length < 8) nextErrors.new_password = "Use at least 8 characters.";
+    if (form.confirm_password !== form.new_password) {
+      nextErrors.confirm_password = "The two passwords do not match.";
+    }
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
+
+    setLoading(true);
+    try {
+      await authService.confirmPasswordReset({ uid, token, ...form });
+      setDone(true);
+      setTimeout(() => navigate("/login"), 2200);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        p: 2,
+        background:
+          "radial-gradient(900px 420px at 80% 5%, var(--bf-glow) 0%, var(--bf-shell) 55%), var(--bf-shell)",
+      }}
+    >
+      <Card sx={{ width: "100%", maxWidth: 460 }}>
+        <CardContent sx={{ p: { xs: 3, md: 4 } }}>
+          <Box sx={{ mb: 3 }}>
+            <BrandLogo size={40} subtitle="Choose a new password" />
+          </Box>
+
+          {!uid || !token ? (
+            <Alert severity="warning">
+              This reset link is missing its code. Start again from the forgot password page.
+            </Alert>
+          ) : done ? (
+            <Alert severity="success">
+              Password updated. Redirecting you to the login page...
+            </Alert>
+          ) : (
+            <>
+              <Typography variant="h5" sx={{ mb: 0.5 }}>
+                Set a new password
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Pick something you have not used before. At least 8 characters.
+              </Typography>
+
+              {error && (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {error}
+                </Alert>
+              )}
+
+              <form onSubmit={handleSubmit} noValidate>
+                <TextField
+                  fullWidth
+                  type="password"
+                  label="New password"
+                  autoComplete="new-password"
+                  value={form.new_password}
+                  onChange={(event) =>
+                    setForm({ ...form, new_password: event.target.value })
+                  }
+                  error={Boolean(errors.new_password)}
+                  helperText={errors.new_password}
+                  sx={{ mb: 2 }}
+                />
+                <TextField
+                  fullWidth
+                  type="password"
+                  label="Confirm new password"
+                  autoComplete="new-password"
+                  value={form.confirm_password}
+                  onChange={(event) =>
+                    setForm({ ...form, confirm_password: event.target.value })
+                  }
+                  error={Boolean(errors.confirm_password)}
+                  helperText={errors.confirm_password}
+                />
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  disabled={loading}
+                  startIcon={<LockResetIcon />}
+                  sx={{ mt: 3 }}
+                >
+                  {loading ? "Saving..." : "Save new password"}
+                </Button>
+              </form>
+            </>
+          )}
+
+          <Divider sx={{ my: 3 }} />
+          <Stack direction="row" spacing={1} justifyContent="center">
+            <Typography variant="body2" color="text.secondary">
+              Need a new link?
+            </Typography>
+            <Link component={RouterLink} to="/forgot-password" fontWeight={700}>
+              Start again
+            </Link>
+          </Stack>
+        </CardContent>
+      </Card>
+    </Box>
+  );
+}
+```
+
+### frontend/src/pages/admin/UserManagement.jsx
+
+```jsx
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Box,
+  Chip,
+  MenuItem,
+  Paper,
+  Snackbar,
+  Stack,
+  Switch,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+
+import { EmptyState, ErrorAlert, Loader, PageHeader, SectionCard } from "../../components/Common.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
+import adminService from "../../services/adminService";
+import { getErrorMessage } from "../../services/api";
+import { formatDate, relativeTime } from "../../utils/formatCurrency.js";
+
+const ROLE_OPTIONS = [
+  { value: "CUSTOMER", label: "Customer" },
+  { value: "ADMIN", label: "Bank employee" },
+];
+
+export default function UserManagement() {
+  const { user: signedInUser } = useAuth();
+  const [users, setUsers] = useState([]);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [snack, setSnack] = useState("");
+  const [busyId, setBusyId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await adminService.users();
+      setUsers(data.results);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return users.filter((item) => {
+      const matchesRole = roleFilter === "ALL" || item.role === roleFilter;
+      const matchesTerm =
+        !term ||
+        item.name.toLowerCase().includes(term) ||
+        item.email.toLowerCase().includes(term);
+      return matchesRole && matchesTerm;
+    });
+  }, [users, search, roleFilter]);
+
+  const counts = useMemo(
+    () => ({
+      total: users.length,
+      customers: users.filter((item) => item.role === "CUSTOMER").length,
+      staff: users.filter((item) => item.role === "ADMIN").length,
+      disabled: users.filter((item) => !item.is_active).length,
+    }),
+    [users]
+  );
+
+  const change = async (account, payload, message) => {
+    setBusyId(account.id);
+    setError("");
+    try {
+      const updated = await adminService.updateUser(account.id, payload);
+      setUsers((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      setSnack(message);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <Box>
+      <PageHeader
+        title="User Management"
+        subtitle="Who can sign in, what role they hold, and whether the account is switched on."
+      />
+
+      <ErrorAlert message={error} onRetry={load} />
+
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2.5} sx={{ mb: 2.5 }}>
+        <SectionCard title="Total accounts">
+          <Typography variant="h4">{counts.total}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {counts.customers} customers, {counts.staff} bank employees
+          </Typography>
+        </SectionCard>
+        <SectionCard title="Switched off">
+          <Typography variant="h4">{counts.disabled}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            Accounts that cannot log in
+          </Typography>
+        </SectionCard>
+        <SectionCard title="Access rules">
+          <Typography variant="body2" color="text.secondary">
+            Only bank employees can open this area. A customer account switched off here keeps
+            its demo data but cannot log in.
+          </Typography>
+        </SectionCard>
+      </Stack>
+
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 2 }}>
+          <TextField
+            size="small"
+            placeholder="Search by name or email"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            sx={{ flexGrow: 1 }}
+          />
+          <TextField
+            size="small"
+            select
+            label="Role"
+            value={roleFilter}
+            onChange={(event) => setRoleFilter(event.target.value)}
+            sx={{ minWidth: 180 }}
+          >
+            <MenuItem value="ALL">All roles</MenuItem>
+            {ROLE_OPTIONS.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Stack>
+
+        {loading ? (
+          <Loader label="Loading accounts..." minHeight={200} />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            title="No accounts match"
+            description="Try a different name, email or role."
+          />
+        ) : (
+          <TableContainer>
+            <Table size="small" sx={{ minWidth: 820 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Person</TableCell>
+                  <TableCell>Role</TableCell>
+                  <TableCell>Joined</TableCell>
+                  <TableCell>Last login</TableCell>
+                  <TableCell align="center">Can sign in</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filtered.map((account) => {
+                  const isSelf = account.id === signedInUser?.id;
+                  return (
+                    <TableRow key={account.id} hover>
+                      <TableCell>
+                        <Stack direction="row" spacing={0.75} alignItems="center">
+                          <Typography variant="body2" fontWeight={600}>
+                            {account.name}
+                          </Typography>
+                          {isSelf && <Chip size="small" label="you" />}
+                        </Stack>
+                        <Typography variant="caption" color="text.secondary">
+                          {account.email}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <TextField
+                          select
+                          size="small"
+                          value={account.role}
+                          disabled={busyId === account.id || isSelf}
+                          onChange={(event) =>
+                            change(
+                              account,
+                              { role: event.target.value },
+                              `${account.name} is now a ${event.target.value === "ADMIN" ? "bank employee" : "customer"}.`
+                            )
+                          }
+                          sx={{ minWidth: 160 }}
+                        >
+                          {ROLE_OPTIONS.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </TableCell>
+                      <TableCell>{formatDate(account.joined)}</TableCell>
+                      <TableCell>
+                        {account.last_login ? relativeTime(account.last_login) : "never"}
+                      </TableCell>
+                      <TableCell align="center">
+                        <Tooltip
+                          title={
+                            isSelf
+                              ? "You cannot switch off the account you are signed in with"
+                              : account.is_active
+                                ? "Switch this account off"
+                                : "Switch this account back on"
+                          }
+                        >
+                          <span>
+                            <Switch
+                              checked={account.is_active}
+                              disabled={busyId === account.id || isSelf}
+                              onChange={(event) =>
+                                change(
+                                  account,
+                                  { is_active: event.target.checked },
+                                  `${account.name} ${event.target.checked ? "can" : "cannot"} sign in now.`
+                                )
+                              }
+                            />
+                          </span>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Paper>
+
+      <Snackbar
+        open={Boolean(snack)}
+        autoHideDuration={3500}
+        onClose={() => setSnack("")}
+        message={snack}
+      />
+    </Box>
+  );
+}
+```
+
+### frontend/src/utils/download.js
+
+```javascript
+/**
+ * Save a blob to disk.
+ *
+ * The object URL is released a few seconds later rather than immediately: releasing
+ * it in the same tick can cancel the download in some browsers.
+ */
+export function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.rel = "noopener";
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, 4000);
+}
+
+/** Where a notification should take the reader when it is clicked. */
+export function notificationTarget(notificationType) {
+  switch (notificationType) {
+    case "LOAN":
+      return "/loans";
+    case "TRANSACTION":
+      return "/transactions";
+    case "SUMMARY":
+      return "/dashboard";
+    case "SECURITY":
+      return "/profile";
+    default:
+      return "/notifications";
+  }
+}
+
+export function notificationIconLabel(notificationType) {
+  return String(notificationType || "SYSTEM").toLowerCase();
 }
 ```
 
@@ -20235,6 +21617,7 @@ Check "register creates a demo customer" {
     } | ConvertTo-Json
     $response = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/register/" -ContentType "application/json" -Body $body
     $script:newUserEmail = $email
+    $script:newUserId = $response.user.id
     $script:newUserPassword = "Verify@12345"
     $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/login/" -ContentType "application/json" `
         -Body (@{ email = $email; password = "Verify@12345" } | ConvertTo-Json)
@@ -20471,6 +21854,99 @@ Check "admin user table loads" {
 Check "assistant monitor shows the conversations" {
     $monitor = Invoke-RestMethod -Uri "$BaseUrl/assistant/monitor/" -Headers $script:adminHeaders
     $monitor.total_messages -ge 3 -and $monitor.intent_breakdown.Count -ge 2
+}
+
+Check "password reset request returns a link for a known email" {
+    $response = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/password-reset/" `
+        -ContentType "application/json" -Body (@{ email = $script:newUserEmail } | ConvertTo-Json)
+    $script:resetUid = $response.reset.uid
+    $script:resetToken = $response.reset.token
+    [bool]$response.reset.token
+}
+
+Check "password reset request stays generic for an unknown email" {
+    $response = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/password-reset/" `
+        -ContentType "application/json" -Body (@{ email = "nobody@bankflow.com" } | ConvertTo-Json)
+    -not $response.reset -and [bool]$response.message
+}
+
+Check "password reset confirm sets the new password" {
+    $confirm = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/password-reset/confirm/" `
+        -ContentType "application/json" -Body (@{
+            uid = $script:resetUid; token = $script:resetToken
+            new_password = "Reset@2026Pass"; confirm_password = "Reset@2026Pass"
+        } | ConvertTo-Json)
+    $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/login/" -ContentType "application/json" `
+        -Body (@{ email = $script:newUserEmail; password = "Reset@2026Pass" } | ConvertTo-Json)
+    [bool]$confirm.message -and [bool]$login.access
+}
+
+Check "password reset confirm rejects a tampered token" {
+    (Status {
+        Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/password-reset/confirm/" `
+            -ContentType "application/json" -Body (@{
+                uid = $script:resetUid; token = "tampered"
+                new_password = "Reset@2026Pass"; confirm_password = "Reset@2026Pass"
+            } | ConvertTo-Json)
+    }) -eq 400
+}
+
+Check "employee records a demo credit and the balance grows" {
+    $before = (Invoke-RestMethod -Uri "$BaseUrl/account/" -Headers $script:newUserHeaders).balance
+    $created = Invoke-RestMethod -Method Post -Uri "$BaseUrl/admin/transactions/create/" `
+        -Headers $script:adminHeaders -ContentType "application/json" -Body (@{
+            customer = $script:newUserId; amount = 750; transaction_type = "CREDIT"
+            category = "Other"; description = "Smoke test credit"
+        } | ConvertTo-Json)
+    $after = (Invoke-RestMethod -Uri "$BaseUrl/account/" -Headers $script:newUserHeaders).balance
+    $created.transaction_id -like "TXN*" -and ($after - $before) -eq 750
+}
+
+Check "employee cannot overdraw a demo account" {
+    (Status {
+        Invoke-RestMethod -Method Post -Uri "$BaseUrl/admin/transactions/create/" `
+            -Headers $script:adminHeaders -ContentType "application/json" -Body (@{
+                customer = $script:newUserId; amount = 9999999; transaction_type = "DEBIT"
+                category = "Other"; description = "Too large"
+            } | ConvertTo-Json)
+    }) -eq 400
+}
+
+Check "employee switches a customer account off and back on" {
+    $off = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/admin/users/$($script:newUserId)/" `
+        -Headers $script:adminHeaders -ContentType "application/json" `
+        -Body (@{ is_active = $false } | ConvertTo-Json)
+    $on = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/admin/users/$($script:newUserId)/" `
+        -Headers $script:adminHeaders -ContentType "application/json" `
+        -Body (@{ is_active = $true } | ConvertTo-Json)
+    ($off.is_active -eq $false) -and ($on.is_active -eq $true)
+}
+
+Check "a customer withdraws their own pending application" {
+    $loan = Invoke-RestMethod -Method Post -Uri "$BaseUrl/loans/" -Headers $script:newUserHeaders `
+        -ContentType "application/json" -Body (@{
+            loan_type = "PERSONAL"; amount = 50000; interest_rate = 11; tenure_months = 12
+            purpose = "Withdraw me"; monthly_income = 40000; employment_type = "SALARIED"
+        } | ConvertTo-Json)
+    $withdrawn = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/loans/$($loan.id)/withdraw/" `
+        -Headers $script:newUserHeaders
+    $remaining = Invoke-RestMethod -Uri "$BaseUrl/loans/" -Headers $script:newUserHeaders
+    [bool]$withdrawn.message -and ($remaining.results | Where-Object { $_.id -eq $loan.id }).Count -eq 0
+}
+
+Check "a decided application cannot be withdrawn" {
+    $loan = Invoke-RestMethod -Method Post -Uri "$BaseUrl/loans/" -Headers $script:newUserHeaders `
+        -ContentType "application/json" -Body (@{
+            loan_type = "PERSONAL"; amount = 60000; interest_rate = 11; tenure_months = 12
+            purpose = "Decided loan"; monthly_income = 40000; employment_type = "SALARIED"
+        } | ConvertTo-Json)
+    Invoke-RestMethod -Method Patch -Uri "$BaseUrl/admin/loans/$($loan.id)/" `
+        -Headers $script:adminHeaders -ContentType "application/json" `
+        -Body (@{ status = "APPROVED" } | ConvertTo-Json) | Out-Null
+    (Status {
+        Invoke-RestMethod -Method Delete -Uri "$BaseUrl/loans/$($loan.id)/withdraw/" `
+            -Headers $script:newUserHeaders
+    }) -eq 400
 }
 
 Write-Output ("-" * 62)

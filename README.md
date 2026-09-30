@@ -61,6 +61,10 @@ the questions instead.
 - Notifications with read / unread state and "mark all as read"
 - Profile: view and update name, phone, address, occupation, monthly income, and change the password
 - Light and dark mode, remembered between visits
+- Forgot password journey: request a reset link, choose a new password and sign in with it
+- Statement download from the account page, and CSV export of any filtered transaction list
+- Notifications are clickable and open the page they relate to
+- A pending loan application can be withdrawn before a bank employee decides on it
 
 **Bank employee / admin**
 
@@ -70,6 +74,8 @@ the questions instead.
 - Loan management: approve / activate / reject a demo loan (creates a customer notification)
 - Analytics dashboard: portfolio trend, category split, transaction count, active loan ratio
 - AI assistant monitoring: total questions, intent breakdown, provider split, full question log
+- User management: change a role, switch an account on or off, with protection against locking yourself out
+- Record a demo transaction for any customer, which updates the balance and notifies them
 
 ---
 
@@ -250,6 +256,8 @@ All customer endpoints require the header `Authorization: Bearer <access_token>`
 | POST | `/api/auth/login/` | Login, returns `access` + `refresh` |
 | POST | `/api/auth/refresh/` | Exchange a refresh token for a new access token |
 | POST | `/api/auth/change-password/` | Change the password after confirming the current one |
+| POST | `/api/auth/password-reset/` | Start a password reset (returns the link, since the demo has no mail server) |
+| POST | `/api/auth/password-reset/confirm/` | Finish the reset with the uid and token |
 
 **Customer**
 
@@ -263,6 +271,7 @@ All customer endpoints require the header `Authorization: Bearer <access_token>`
 | GET | `/api/transactions/export/` | Download the filtered transactions as a CSV file |
 | GET / POST | `/api/loans/` | List loans / submit a demo loan application |
 | GET | `/api/loans/<id>/` | Loan detail |
+| DELETE | `/api/loans/<id>/withdraw/` | Withdraw your own pending application |
 | POST | `/api/emi/` | Server-side EMI calculation |
 | GET | `/api/notifications/` | Notifications (`?unread=true` for unread only) |
 | PUT | `/api/notifications/<id>/` | Mark read / unread |
@@ -283,6 +292,8 @@ All customer endpoints require the header `Authorization: Bearer <access_token>`
 | GET | `/api/admin/loans/` | All loans with filters |
 | PATCH | `/api/admin/loans/<id>/` | `{ "status": "APPROVED" }` etc. (notifies the customer) |
 | GET | `/api/admin/users/` | User management table |
+| PATCH | `/api/admin/users/<id>/` | Change a role, or switch an account on or off |
+| POST | `/api/admin/transactions/create/` | Record a demo transaction for a customer |
 | GET | `/api/assistant/monitor/` | AI monitoring dashboard data |
 
 **AI request / response example**
