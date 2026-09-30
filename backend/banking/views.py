@@ -178,6 +178,26 @@ class LoanDetailView(generics.RetrieveAPIView):
         return Loan.objects.filter(user=self.request.user)
 
 
+class LoanWithdrawView(APIView):
+    """DELETE /api/loans/<id>/withdraw/ - cancel your own pending application."""
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        loan = Loan.objects.filter(pk=pk, user=request.user).first()
+        if not loan:
+            return Response({"detail": "Loan application not found."},
+                            status=status.HTTP_404_NOT_FOUND)
+        if loan.status != Loan.Status.PENDING:
+            return Response(
+                {"detail": "Only an application that is still pending can be withdrawn."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        loan_id = loan.loan_id
+        loan.delete()
+        return Response({"message": f"Application {loan_id} was withdrawn."})
+
+
 class NotificationListView(generics.ListAPIView):
     """GET /api/notifications/ - ?unread=true for unread only."""
 

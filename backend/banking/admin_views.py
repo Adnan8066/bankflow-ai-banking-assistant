@@ -2,6 +2,7 @@
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Sum
 from django.utils.dateparse import parse_date
+from django.utils import timezone
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,12 +12,14 @@ from users.serializers import CustomerProfileSerializer
 
 from .models import Account, Loan, Notification, Transaction, account_balance
 from .serializers import AccountSerializer, LoanSerializer, TransactionSerializer
+from .serializers import AdminTransactionCreateSerializer, AdminUserUpdateSerializer
 from .services import (
     aware,
     customer_transactions,
     format_inr,
     get_dashboard,
     loan_status_breakdown,
+    record_transaction,
 )
 
 User = get_user_model()
@@ -298,6 +301,101 @@ class AdminUserListView(APIView):
                 for u in users
             ],
         })
+
+
+class AdminUserDetailView(APIView):
+    """PATCH /api/admin/users/<id>/ - activate, deactivate or change a user's role."""
+
+    permission_classes = [IsBankStaff]
+
+    def patch(self, request, pk):
+        user = User.objects.filter(pk=pk).first()
+        if not user:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = AdminUserUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        changes = serializer.validated_data
+
+        if "is_active" in changes:
+            new_state = changes["is_active"]
+            if user.pk == request.user.pk and not new_state:
+                return Response(
+                    {"detail": "You cannot deactivate the account you are signed in with."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.is_active = new_state
+
+        if "role" in changes:
+            role = changes["role"]
+            if user.pk == request.user.pk and role != User.Role.ADMIN:
+                return Response(
+                    {"detail": "You cannot remove your own bank employee access."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            user.role = role
+            user.is_staff = role == User.Role.ADMIN
+
+        user.save()
+        return Response({
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "role_display": user.get_role_display(),
+            "is_active": user.is_active,
+            "last_login": user.last_login.isoformat() if user.last_login else None,
+            "joined": user.date_joined.isoformat(),
+        })
+
+
+class AdminTransactionCreateView(APIView):
+    """POST /api/admin/transactions/ - record a demo transaction for a customer."""
+
+    permission_classes = [IsBankStaff]
+
+    def post(self, request):
+        serializer = AdminTransactionCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        customer = User.objects.filter(pk=data["customer"]).first()
+        if not customer:
+            return Response({"detail": "Choose a customer first."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        account = Account.objects.filter(user=customer).first()
+        if not account:
+            return Response({"detail": "That customer has no demo account."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        amount = data["amount"]
+        if (data["transaction_type"] == Transaction.Type.DEBIT
+                and float(account.balance) < amount):
+            return Response(
+                {"detail": "That debit is larger than the customer's balance."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        txn = record_transaction(
+            account,
+            amount=amount,
+            description=data["description"],
+            category=data["category"],
+            transaction_type=data["transaction_type"],
+            when=data.get("date"),
+        )
+        Notification.objects.create(
+            user=customer,
+            title=(
+                f"{'Credit' if data['transaction_type'] == 'CREDIT' else 'Debit'} "
+                f"of ₹{amount:,.0f}"
+            ),
+            message=(
+                f"{data['description']} was added to your demo account by a bank employee."
+            ),
+            notification_type=Notification.NotificationType.TRANSACTION,
+        )
+        return Response(TransactionSerializer(txn).data, status=status.HTTP_201_CREATED)
 
 
 class AdminOverviewView(APIView):

@@ -144,3 +144,66 @@ class RefreshTokenTests(APITestCase):
     def test_refresh_with_a_nonsense_token_returns_401(self):
         response = self.client.post(reverse("token_refresh"), {"refresh": "not-a-real-token"})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class PasswordResetTests(APITestCase):
+    """The whole forgot password journey, from the request to logging in again."""
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="forgot@bankflow.com", password="Demo@12345", name="Forgot Password"
+        )
+
+    def test_request_for_a_known_email_returns_a_reset_link(self):
+        response = self.client.post(reverse("password-reset"), {"email": "forgot@bankflow.com"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("reset", response.data)
+        self.assertTrue(response.data["reset"]["token"])
+        self.assertTrue(response.data["reset"]["uid"])
+
+    def test_request_for_an_unknown_email_stays_generic(self):
+        response = self.client.post(reverse("password-reset"), {"email": "nobody@bankflow.com"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("reset", response.data)
+        self.assertIn("message", response.data)
+
+    def test_confirm_replaces_the_password_and_allows_login(self):
+        request = self.client.post(reverse("password-reset"), {"email": "forgot@bankflow.com"})
+        reset = request.data["reset"]
+
+        confirm = self.client.post(reverse("password-reset-confirm"), {
+            "uid": reset["uid"], "token": reset["token"],
+            "new_password": "Fresh@2026Pass", "confirm_password": "Fresh@2026Pass",
+        })
+        self.assertEqual(confirm.status_code, status.HTTP_200_OK)
+
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Fresh@2026Pass"))
+
+        login = self.client.post(reverse("login"), {
+            "email": "forgot@bankflow.com", "password": "Fresh@2026Pass",
+        })
+        self.assertEqual(login.status_code, status.HTTP_200_OK)
+        self.assertIn("access", login.data)
+
+    def test_confirm_rejects_a_tampered_token(self):
+        request = self.client.post(reverse("password-reset"), {"email": "forgot@bankflow.com"})
+        reset = request.data["reset"]
+
+        confirm = self.client.post(reverse("password-reset-confirm"), {
+            "uid": reset["uid"], "token": "not-the-right-token",
+            "new_password": "Fresh@2026Pass", "confirm_password": "Fresh@2026Pass",
+        })
+        self.assertEqual(confirm.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("Demo@12345"))
+
+    def test_confirm_rejects_mismatched_passwords(self):
+        request = self.client.post(reverse("password-reset"), {"email": "forgot@bankflow.com"})
+        reset = request.data["reset"]
+
+        confirm = self.client.post(reverse("password-reset-confirm"), {
+            "uid": reset["uid"], "token": reset["token"],
+            "new_password": "Fresh@2026Pass", "confirm_password": "Different@2026",
+        })
+        self.assertEqual(confirm.status_code, status.HTTP_400_BAD_REQUEST)

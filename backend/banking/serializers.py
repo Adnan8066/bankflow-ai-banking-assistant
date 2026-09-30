@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from django.contrib.auth import get_user_model
+
 from .models import Account, Loan, Notification, Transaction
 from .services import calculate_emi
 
@@ -115,3 +117,27 @@ class EMICalculatorSerializer(serializers.Serializer):
     loan_amount = serializers.FloatField(min_value=1000)
     interest_rate = serializers.FloatField(min_value=0, max_value=50)
     tenure_months = serializers.IntegerField(min_value=1, max_value=480)
+
+
+class AdminTransactionCreateSerializer(serializers.Serializer):
+    """A bank employee records a correction or a demo movement for one customer."""
+
+    customer = serializers.IntegerField()
+    amount = serializers.FloatField(min_value=1, max_value=10000000)
+    transaction_type = serializers.ChoiceField(choices=Transaction.Type.choices)
+    category = serializers.ChoiceField(choices=Transaction.Category.choices)
+    description = serializers.CharField(max_length=200)
+    date = serializers.DateTimeField(required=False, allow_null=True)
+
+
+class AdminUserUpdateSerializer(serializers.Serializer):
+    """Role and access changes for the user management screen.
+
+    Using a serializer matters here: a form post sends "false" as text, and a plain
+    bool() call would read that as True.
+    """
+
+    is_active = serializers.BooleanField(required=False)
+    role = serializers.ChoiceField(
+        choices=[choice[0] for choice in get_user_model().Role.choices], required=False
+    )

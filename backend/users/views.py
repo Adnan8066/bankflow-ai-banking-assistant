@@ -1,4 +1,8 @@
 from django.core.exceptions import ObjectDoesNotExist
+from django.contrib.auth import get_user_model
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -9,9 +13,13 @@ from .models import CustomerProfile
 from .serializers import (
     ChangePasswordSerializer,
     CustomerProfileSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
     ProfileUpdateSerializer,
     RegisterSerializer,
 )
+
+User = get_user_model()
 
 
 class RegisterView(generics.CreateAPIView):
@@ -85,3 +93,64 @@ class SafeTokenRefreshView(TokenRefreshView):
                 {"detail": "This session is no longer valid. Please log in again."},
                 status=status.HTTP_401_UNAUTHORIZED,
             )
+
+
+class PasswordResetRequestView(APIView):
+    """POST /api/auth/password-reset/ - start a password reset.
+
+    BankFlow has no email server, so the response includes the reset link and the
+    interface displays it on screen. A real deployment would email the same link
+    instead of returning it.
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = User.objects.filter(email__iexact=serializer.validated_data["email"]).first()
+
+        response = {
+            "message": (
+                "If that email belongs to an account, a reset link has been created. "
+                "Check your inbox."
+            ),
+            "demo_mode": True,
+        }
+        if user:
+            response["reset"] = {
+                "uid": urlsafe_base64_encode(force_bytes(user.pk)),
+                "token": default_token_generator.make_token(user),
+                "email": user.email,
+            }
+            response["message"] = (
+                "Account found. BankFlow has no email server, so use the reset link shown here."
+            )
+        return Response(response)
+
+
+class PasswordResetConfirmView(APIView):
+    """POST /api/auth/password-reset/confirm/ - finish the reset with the token."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        user = None
+        try:
+            user = User.objects.get(pk=force_str(urlsafe_base64_decode(data["uid"])))
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+
+        if user is None or not default_token_generator.check_token(user, data["token"]):
+            return Response(
+                {"detail": "This reset link is not valid or has already been used."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(data["new_password"])
+        user.save(update_fields=["password"])
+        return Response({"message": "Password updated. You can log in with your new password."})

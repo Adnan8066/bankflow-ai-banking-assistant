@@ -53,6 +53,7 @@ Check "register creates a demo customer" {
     } | ConvertTo-Json
     $response = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/register/" -ContentType "application/json" -Body $body
     $script:newUserEmail = $email
+    $script:newUserId = $response.user.id
     $script:newUserPassword = "Verify@12345"
     $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/login/" -ContentType "application/json" `
         -Body (@{ email = $email; password = "Verify@12345" } | ConvertTo-Json)
@@ -289,6 +290,99 @@ Check "admin user table loads" {
 Check "assistant monitor shows the conversations" {
     $monitor = Invoke-RestMethod -Uri "$BaseUrl/assistant/monitor/" -Headers $script:adminHeaders
     $monitor.total_messages -ge 3 -and $monitor.intent_breakdown.Count -ge 2
+}
+
+Check "password reset request returns a link for a known email" {
+    $response = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/password-reset/" `
+        -ContentType "application/json" -Body (@{ email = $script:newUserEmail } | ConvertTo-Json)
+    $script:resetUid = $response.reset.uid
+    $script:resetToken = $response.reset.token
+    [bool]$response.reset.token
+}
+
+Check "password reset request stays generic for an unknown email" {
+    $response = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/password-reset/" `
+        -ContentType "application/json" -Body (@{ email = "nobody@bankflow.com" } | ConvertTo-Json)
+    -not $response.reset -and [bool]$response.message
+}
+
+Check "password reset confirm sets the new password" {
+    $confirm = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/password-reset/confirm/" `
+        -ContentType "application/json" -Body (@{
+            uid = $script:resetUid; token = $script:resetToken
+            new_password = "Reset@2026Pass"; confirm_password = "Reset@2026Pass"
+        } | ConvertTo-Json)
+    $login = Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/login/" -ContentType "application/json" `
+        -Body (@{ email = $script:newUserEmail; password = "Reset@2026Pass" } | ConvertTo-Json)
+    [bool]$confirm.message -and [bool]$login.access
+}
+
+Check "password reset confirm rejects a tampered token" {
+    (Status {
+        Invoke-RestMethod -Method Post -Uri "$BaseUrl/auth/password-reset/confirm/" `
+            -ContentType "application/json" -Body (@{
+                uid = $script:resetUid; token = "tampered"
+                new_password = "Reset@2026Pass"; confirm_password = "Reset@2026Pass"
+            } | ConvertTo-Json)
+    }) -eq 400
+}
+
+Check "employee records a demo credit and the balance grows" {
+    $before = (Invoke-RestMethod -Uri "$BaseUrl/account/" -Headers $script:newUserHeaders).balance
+    $created = Invoke-RestMethod -Method Post -Uri "$BaseUrl/admin/transactions/create/" `
+        -Headers $script:adminHeaders -ContentType "application/json" -Body (@{
+            customer = $script:newUserId; amount = 750; transaction_type = "CREDIT"
+            category = "Other"; description = "Smoke test credit"
+        } | ConvertTo-Json)
+    $after = (Invoke-RestMethod -Uri "$BaseUrl/account/" -Headers $script:newUserHeaders).balance
+    $created.transaction_id -like "TXN*" -and ($after - $before) -eq 750
+}
+
+Check "employee cannot overdraw a demo account" {
+    (Status {
+        Invoke-RestMethod -Method Post -Uri "$BaseUrl/admin/transactions/create/" `
+            -Headers $script:adminHeaders -ContentType "application/json" -Body (@{
+                customer = $script:newUserId; amount = 9999999; transaction_type = "DEBIT"
+                category = "Other"; description = "Too large"
+            } | ConvertTo-Json)
+    }) -eq 400
+}
+
+Check "employee switches a customer account off and back on" {
+    $off = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/admin/users/$($script:newUserId)/" `
+        -Headers $script:adminHeaders -ContentType "application/json" `
+        -Body (@{ is_active = $false } | ConvertTo-Json)
+    $on = Invoke-RestMethod -Method Patch -Uri "$BaseUrl/admin/users/$($script:newUserId)/" `
+        -Headers $script:adminHeaders -ContentType "application/json" `
+        -Body (@{ is_active = $true } | ConvertTo-Json)
+    ($off.is_active -eq $false) -and ($on.is_active -eq $true)
+}
+
+Check "a customer withdraws their own pending application" {
+    $loan = Invoke-RestMethod -Method Post -Uri "$BaseUrl/loans/" -Headers $script:newUserHeaders `
+        -ContentType "application/json" -Body (@{
+            loan_type = "PERSONAL"; amount = 50000; interest_rate = 11; tenure_months = 12
+            purpose = "Withdraw me"; monthly_income = 40000; employment_type = "SALARIED"
+        } | ConvertTo-Json)
+    $withdrawn = Invoke-RestMethod -Method Delete -Uri "$BaseUrl/loans/$($loan.id)/withdraw/" `
+        -Headers $script:newUserHeaders
+    $remaining = Invoke-RestMethod -Uri "$BaseUrl/loans/" -Headers $script:newUserHeaders
+    [bool]$withdrawn.message -and ($remaining.results | Where-Object { $_.id -eq $loan.id }).Count -eq 0
+}
+
+Check "a decided application cannot be withdrawn" {
+    $loan = Invoke-RestMethod -Method Post -Uri "$BaseUrl/loans/" -Headers $script:newUserHeaders `
+        -ContentType "application/json" -Body (@{
+            loan_type = "PERSONAL"; amount = 60000; interest_rate = 11; tenure_months = 12
+            purpose = "Decided loan"; monthly_income = 40000; employment_type = "SALARIED"
+        } | ConvertTo-Json)
+    Invoke-RestMethod -Method Patch -Uri "$BaseUrl/admin/loans/$($loan.id)/" `
+        -Headers $script:adminHeaders -ContentType "application/json" `
+        -Body (@{ status = "APPROVED" } | ConvertTo-Json) | Out-Null
+    (Status {
+        Invoke-RestMethod -Method Delete -Uri "$BaseUrl/loans/$($loan.id)/withdraw/" `
+            -Headers $script:newUserHeaders
+    }) -eq 400
 }
 
 Write-Output ("-" * 62)

@@ -7,7 +7,9 @@ from banking.admin_views import (
     AdminLoanListView,
     AdminLoanUpdateView,
     AdminOverviewView,
+    AdminTransactionCreateView,
     AdminTransactionListView,
+    AdminUserDetailView,
     AdminUserListView,
 )
 
@@ -17,7 +19,10 @@ urlpatterns = [
     path("customers/", AdminCustomerListView.as_view(), name="admin-customers"),
     path("customers/<int:pk>/", AdminCustomerDetailView.as_view(), name="admin-customer-detail"),
     path("transactions/", AdminTransactionListView.as_view(), name="admin-transactions"),
+    path("transactions/create/", AdminTransactionCreateView.as_view(),
+         name="admin-transaction-create"),
     path("loans/", AdminLoanListView.as_view(), name="admin-loans"),
     path("loans/<int:pk>/", AdminLoanUpdateView.as_view(), name="admin-loan-update"),
     path("users/", AdminUserListView.as_view(), name="admin-users"),
+    path("users/<int:pk>/", AdminUserDetailView.as_view(), name="admin-user-detail"),
 ]

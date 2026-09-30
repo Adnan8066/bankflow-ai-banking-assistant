@@ -179,3 +179,100 @@ class AdminApiTests(APITestCase):
         analytics = self.client.get("/api/admin/analytics/")
         self.assertEqual(len(analytics.data["transaction_type_split"]), 2)
         self.assertEqual(len(analytics.data["loan_status_breakdown"]), 5)
+
+
+class LoanWithdrawTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="withdraw@bankflow.com", password="Demo@12345", name="Withdraw User"
+        )
+        bootstrap_customer(self.user)
+        self.client.force_authenticate(self.user)
+        self.loan = self.client.post("/api/loans/", {
+            "loan_type": "PERSONAL", "amount": 100000, "interest_rate": 11,
+            "tenure_months": 24, "purpose": "To be withdrawn",
+            "monthly_income": 50000, "employment_type": "SALARIED",
+        }).data
+
+    def test_a_pending_application_can_be_withdrawn(self):
+        response = self.client.delete(f"/api/loans/{self.loan['id']}/withdraw/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(Loan.objects.filter(pk=self.loan["id"]).exists())
+
+    def test_a_decided_application_cannot_be_withdrawn(self):
+        loan = Loan.objects.get(pk=self.loan["id"])
+        loan.status = Loan.Status.ACTIVE
+        loan.save(update_fields=["status"])
+
+        response = self.client.delete(f"/api/loans/{self.loan['id']}/withdraw/")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue(Loan.objects.filter(pk=self.loan["id"]).exists())
+
+    def test_another_customer_cannot_withdraw_your_application(self):
+        other = User.objects.create_user(
+            email="other@bankflow.com", password="Demo@12345", name="Other User"
+        )
+        self.client.force_authenticate(other)
+        response = self.client.delete(f"/api/loans/{self.loan['id']}/withdraw/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class AdminWriteTests(APITestCase):
+    """Bank employees can record a demo transaction and manage user access."""
+
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            email="staff@bankflow.com", password="Admin@12345",
+            name="Staff Member", role=User.Role.ADMIN,
+        )
+        self.customer = User.objects.create_user(
+            email="write@bankflow.com", password="Demo@12345", name="Write Customer"
+        )
+        self.account = bootstrap_customer(self.customer)
+        self.account.balance = 10000
+        self.account.save(update_fields=["balance"])
+        self.client.force_authenticate(self.admin)
+
+    def test_employee_records_a_debit_and_the_balance_drops(self):
+        response = self.client.post("/api/admin/transactions/create/", {
+            "customer": self.customer.id, "amount": 1500, "transaction_type": "DEBIT",
+            "category": "Bills", "description": "Branch correction",
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.account.refresh_from_db()
+        self.assertEqual(float(self.account.balance), 8500.0)
+        self.assertTrue(Notification.objects.filter(user=self.customer).exists())
+
+    def test_employee_cannot_overdraw_the_demo_account(self):
+        response = self.client.post("/api/admin/transactions/create/", {
+            "customer": self.customer.id, "amount": 999999, "transaction_type": "DEBIT",
+            "category": "Other", "description": "Too large",
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.account.refresh_from_db()
+        self.assertEqual(float(self.account.balance), 10000.0)
+
+    def test_employee_can_deactivate_and_reactivate_a_customer(self):
+        off = self.client.patch(f"/api/admin/users/{self.customer.id}/", {"is_active": False})
+        self.assertEqual(off.status_code, status.HTTP_200_OK)
+        self.customer.refresh_from_db()
+        self.assertFalse(self.customer.is_active)
+
+        on = self.client.patch(f"/api/admin/users/{self.customer.id}/", {"is_active": True})
+        self.assertEqual(on.status_code, status.HTTP_200_OK)
+        self.customer.refresh_from_db()
+        self.assertTrue(self.customer.is_active)
+
+    def test_employee_cannot_lock_themselves_out(self):
+        response = self.client.patch(f"/api/admin/users/{self.admin.id}/", {"is_active": False})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.admin.refresh_from_db()
+        self.assertTrue(self.admin.is_active)
+
+    def test_a_customer_cannot_record_transactions(self):
+        self.client.force_authenticate(self.customer)
+        response = self.client.post("/api/admin/transactions/create/", {
+            "customer": self.customer.id, "amount": 100, "transaction_type": "CREDIT",
+            "category": "Other", "description": "Should not work",
+        })
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
