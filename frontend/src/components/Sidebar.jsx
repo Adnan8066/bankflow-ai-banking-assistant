@@ -24,6 +24,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import GroupIcon from "@mui/icons-material/Group";
 import InsightsIcon from "@mui/icons-material/Insights";
 import MonitorHeartIcon from "@mui/icons-material/MonitorHeart";
+import ManageAccountsIcon from "@mui/icons-material/ManageAccounts";
 import LogoutIcon from "@mui/icons-material/Logout";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -53,6 +54,7 @@ const ADMIN_LINKS = [
   { to: "/admin/loans", label: "Loan Management", icon: <RequestQuoteIcon /> },
   { to: "/admin/analytics", label: "Analytics", icon: <InsightsIcon /> },
   { to: "/admin/ai-monitor", label: "AI Monitoring", icon: <MonitorHeartIcon /> },
+  { to: "/admin/users", label: "User Management", icon: <ManageAccountsIcon /> },
 ];
 
 const itemSx = {

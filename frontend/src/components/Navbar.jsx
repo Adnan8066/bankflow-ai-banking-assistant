@@ -47,6 +47,7 @@ const PAGES = {
   "/admin/loans": { title: "Loan Management", subtitle: "Review and decide on applications" },
   "/admin/analytics": { title: "Analytics", subtitle: "Portfolio trends and totals" },
   "/admin/ai-monitor": { title: "AI Monitoring", subtitle: "What customers ask the assistant" },
+  "/admin/users": { title: "User Management", subtitle: "Roles and account access" },
 };
 
 /** Application header: page context on the left, quick actions and the account menu on the right. */

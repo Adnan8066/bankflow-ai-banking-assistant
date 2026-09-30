@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Box,
+  Alert,
   Button,
   Card,
   CardContent,
   Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   Grid,
   LinearProgress,
+  Snackbar,
   Stack,
   Table,
   TableBody,
@@ -18,6 +24,7 @@ import {
   Typography,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { ErrorAlert, Loader, PageHeader, SectionCard, StatusChip } from "../components/Common.jsx";
@@ -32,6 +39,9 @@ export default function LoanDetails() {
   const [loan, setLoan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [snack, setSnack] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -48,6 +58,21 @@ export default function LoanDetails() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const withdraw = async () => {
+    setWithdrawing(true);
+    try {
+      const result = await bankingService.withdrawLoan(id);
+      setSnack(result.message || "Application withdrawn.");
+      setConfirmOpen(false);
+      setTimeout(() => navigate("/loans"), 1600);
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setConfirmOpen(false);
+    } finally {
+      setWithdrawing(false);
+    }
+  };
 
   if (loading) return <Loader label="Loading loan details..." />;
 
@@ -71,11 +96,29 @@ export default function LoanDetails() {
         title={loan.loan_type_display}
         subtitle={`Loan ID ${loan.loan_id} - applied ${formatDate(loan.applied_at)}`}
         action={
-          <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/loans")}>
-            Back to loans
-          </Button>
+          <Stack direction="row" spacing={1.5}>
+            {loan.status === "PENDING" && (
+              <Button
+                color="error"
+                variant="outlined"
+                startIcon={<DeleteOutlineIcon />}
+                onClick={() => setConfirmOpen(true)}
+              >
+                Withdraw application
+              </Button>
+            )}
+            <Button startIcon={<ArrowBackIcon />} onClick={() => navigate("/loans")}>
+              Back to loans
+            </Button>
+          </Stack>
         }
       />
+
+      {snack && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSnack("")}>
+          {snack}
+        </Alert>
+      )}
 
       <Grid container spacing={2.5}>
         <Grid item xs={12} md={4}>
@@ -211,6 +254,29 @@ export default function LoanDetails() {
           </SectionCard>
         </Grid>
       </Grid>
+
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Withdraw this application?</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" color="text.secondary">
+            {loan.loan_type_display} {loan.loan_id} for {formatCurrency(loan.amount)} will be
+            removed from your demo account. You can apply again at any time.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={() => setConfirmOpen(false)}>Keep application</Button>
+          <Button color="error" variant="contained" onClick={withdraw} disabled={withdrawing}>
+            {withdrawing ? "Withdrawing..." : "Withdraw"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={Boolean(snack)}
+        autoHideDuration={4000}
+        onClose={() => setSnack("")}
+        message={snack}
+      />
     </Box>
   );
 }

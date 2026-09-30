@@ -20,11 +20,14 @@ import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
 import InsightsIcon from "@mui/icons-material/Insights";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead";
+import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
+import { useNavigate } from "react-router-dom";
 
 import { EmptyState, ErrorAlert, Loader, PageHeader } from "../components/Common.jsx";
 import bankingService from "../services/bankingService";
 import { getErrorMessage } from "../services/api";
 import { relativeTime } from "../utils/formatCurrency.js";
+import { notificationTarget } from "../utils/download.js";
 
 const ICONS = {
   TRANSACTION: <PaymentsIcon />,
@@ -35,6 +38,7 @@ const ICONS = {
 };
 
 export default function Notifications() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [tab, setTab] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -124,11 +128,14 @@ export default function Notifications() {
             <Grid item xs={12} key={item.id}>
               <Paper
                 variant="outlined"
+                onClick={() => navigate(notificationTarget(item.notification_type))}
                 sx={{
                   p: 2,
                   borderRadius: 3,
+                  cursor: "pointer",
                   borderLeft: item.is_read ? "4px solid var(--bf-border)" : "4px solid #16357f",
                   backgroundColor: item.is_read ? "var(--bf-paper)" : "var(--bf-panel)",
+                  "&:hover": { borderColor: "primary.main" },
                 }}
               >
                 <Stack direction="row" spacing={2} alignItems="flex-start">
@@ -166,8 +173,23 @@ export default function Notifications() {
                     </Typography>
                   </Box>
                   <Tooltip title={item.is_read ? "Mark as unread" : "Mark as read"}>
-                    <IconButton onClick={() => toggleRead(item)}>
+                    <IconButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleRead(item);
+                      }}
+                    >
                       {item.is_read ? <MarkEmailReadIcon color="disabled" /> : <MarkEmailReadIcon color="primary" />}
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Open the related page">
+                    <IconButton
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        navigate(notificationTarget(item.notification_type));
+                      }}
+                    >
+                      <ArrowForwardIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
                 </Stack>

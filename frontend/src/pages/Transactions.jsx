@@ -23,6 +23,7 @@ import { ErrorAlert, PageHeader } from "../components/Common.jsx";
 import bankingService from "../services/bankingService";
 import { getErrorMessage } from "../services/api";
 import { TRANSACTION_CATEGORIES, formatCurrency } from "../utils/formatCurrency.js";
+import { downloadBlob } from "../utils/download.js";
 
 const EMPTY_FILTERS = {
   search: "",
@@ -110,20 +111,7 @@ export default function Transactions() {
         end_date: filters.end_date || undefined,
         ordering: filters.ordering,
       });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "bankflow-transactions.csv";
-      link.rel = "noopener";
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      // Releasing the blob immediately can cancel the download in some browsers,
-      // so the link and the object URL are cleaned up a moment later.
-      setTimeout(() => {
-        link.remove();
-        URL.revokeObjectURL(url);
-      }, 4000);
+      downloadBlob(blob, "bankflow-transactions.csv");
     } catch (err) {
       setError("The CSV could not be created. Please try again.");
     } finally {

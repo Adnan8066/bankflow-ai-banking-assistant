@@ -18,6 +18,7 @@ const bankingService = {
     api.get("/loans/", { params }).then((r) => r.data.results ?? r.data),
   getLoan: (id) => api.get(`/loans/${id}/`).then((r) => r.data),
   applyLoan: (payload) => api.post("/loans/", payload).then((r) => r.data),
+  withdrawLoan: (id) => api.delete(`/loans/${id}/withdraw/`).then((r) => r.data),
 
   calculateEmi: (payload) => api.post("/emi/", payload).then((r) => r.data),
 

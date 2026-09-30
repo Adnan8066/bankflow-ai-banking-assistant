@@ -8,6 +8,7 @@ import {
   Chip,
   Divider,
   Grid,
+  Snackbar,
   Stack,
   Typography,
 } from "@mui/material";
@@ -15,12 +16,14 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import CalculateIcon from "@mui/icons-material/Calculate";
+import DownloadIcon from "@mui/icons-material/Download";
 import { useNavigate } from "react-router-dom";
 
 import { ErrorAlert, Loader, PageHeader, SectionCard, StatusChip } from "../components/Common.jsx";
 import bankingService from "../services/bankingService";
 import { getErrorMessage } from "../services/api";
 import { formatCurrency, formatDate } from "../utils/formatCurrency.js";
+import { downloadBlob } from "../utils/download.js";
 
 function DetailRow({ label, value, copyable }) {
   const [copied, setCopied] = useState(false);
@@ -59,6 +62,8 @@ export default function Account() {
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  const [snack, setSnack] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +80,20 @@ export default function Account() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const downloadStatement = async () => {
+    setDownloading(true);
+    setError("");
+    try {
+      const blob = await bankingService.exportTransactions({});
+      downloadBlob(blob, "bankflow-statement.csv");
+      setSnack("Your demo statement is downloading as a CSV file.");
+    } catch {
+      setError("The statement could not be created. Please try again.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (loading) return <Loader label="Loading account details..." />;
 
@@ -151,6 +170,17 @@ export default function Account() {
                 EMI calculator
               </Button>
             </Stack>
+
+            <Button
+              fullWidth
+              variant="outlined"
+              startIcon={<DownloadIcon />}
+              onClick={downloadStatement}
+              disabled={downloading}
+              sx={{ mt: 1.5 }}
+            >
+              {downloading ? "Preparing statement..." : "Download statement (CSV)"}
+            </Button>
           </Grid>
 
           <Grid item xs={12} md={7}>
@@ -186,6 +216,13 @@ export default function Account() {
           </Grid>
         </Grid>
       )}
+
+      <Snackbar
+        open={Boolean(snack)}
+        autoHideDuration={3500}
+        onClose={() => setSnack("")}
+        message={snack}
+      />
     </Box>
   );
 }

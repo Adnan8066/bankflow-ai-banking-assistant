@@ -11,6 +11,9 @@ const adminService = {
   updateLoanStatus: (id, status) =>
     api.patch(`/admin/loans/${id}/`, { status }).then((r) => r.data),
   users: () => api.get("/admin/users/").then((r) => r.data),
+  updateUser: (id, payload) => api.patch(`/admin/users/${id}/`, payload).then((r) => r.data),
+  createTransaction: (payload) =>
+    api.post("/admin/transactions/create/", payload).then((r) => r.data),
   aiMonitor: (params = {}) => api.get("/assistant/monitor/", { params }).then((r) => r.data),
 };
 

@@ -16,7 +16,7 @@ import {
 } from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
-import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import { getErrorMessage } from "../services/api";
@@ -31,11 +31,27 @@ export default function Login() {
   const { login, isAuthenticated, isAdmin } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [params] = useSearchParams();
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const sessionExpired = new URLSearchParams(location.search).get("session") === "expired";
+
+  // The landing page and the footer link here with ?demo=customer or ?demo=admin,
+  // and ?email= fills the form, so those links are a real shortcut.
+  useEffect(() => {
+    const demo = params.get("demo");
+    const email = params.get("email");
+    if (demo) {
+      const account = DEMO_ACCOUNTS.find((item) =>
+        demo === "admin" ? item.label === "Bank employee" : item.label === "Customer"
+      );
+      if (account) setForm({ email: account.email, password: account.password });
+    } else if (email) {
+      setForm((prev) => ({ ...prev, email }));
+    }
+  }, [params]);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -135,6 +151,12 @@ export default function Login() {
                 ),
               }}
             />
+
+            <Stack direction="row" justifyContent="flex-end" sx={{ mt: 1 }}>
+              <Link component={RouterLink} to="/forgot-password" variant="body2" fontWeight={600}>
+                Forgot password?
+              </Link>
+            </Stack>
 
             <Button
               type="submit"

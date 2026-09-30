@@ -55,6 +55,7 @@ import {
   formatDate,
   greeting,
 } from "../utils/formatCurrency.js";
+import { notificationTarget } from "../utils/download.js";
 
 const QUICK_ACTIONS = [
   { label: "View Transactions", icon: <ReceiptLongIcon />, to: "/transactions" },
@@ -467,7 +468,14 @@ export default function Dashboard() {
                     direction="row"
                     spacing={1.5}
                     alignItems="flex-start"
-                    sx={{ p: 1.25, borderRadius: 2, backgroundColor: item.is_read ? "var(--bf-panel)" : "var(--bf-tint)" }}
+                    onClick={() => navigate(notificationTarget(item.notification_type))}
+                    sx={{
+                      p: 1.25,
+                      borderRadius: 2,
+                      cursor: "pointer",
+                      backgroundColor: item.is_read ? "var(--bf-panel)" : "var(--bf-tint)",
+                      "&:hover": { backgroundColor: "var(--bf-surface)" },
+                    }}
                   >
                     <NotificationsActiveIcon fontSize="small" color="primary" />
                     <Box>

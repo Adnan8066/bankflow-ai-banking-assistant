@@ -27,6 +27,16 @@ const authService = {
     return data;
   },
 
+  async requestPasswordReset(email) {
+    const { data } = await api.post("/auth/password-reset/", { email });
+    return data;
+  },
+
+  async confirmPasswordReset(payload) {
+    const { data } = await api.post("/auth/password-reset/confirm/", payload);
+    return data;
+  },
+
   logout() {
     tokenStore.clear();
   },

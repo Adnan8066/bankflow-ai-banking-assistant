@@ -17,6 +17,8 @@ import AIAssistant from "./pages/AIAssistant.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import Profile from "./pages/Profile.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import ForgotPassword from "./pages/ForgotPassword.jsx";
+import ResetPassword from "./pages/ResetPassword.jsx";
 
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import CustomerManagement from "./pages/admin/CustomerManagement.jsx";
@@ -24,6 +26,7 @@ import TransactionManagement from "./pages/admin/TransactionManagement.jsx";
 import LoanManagement from "./pages/admin/LoanManagement.jsx";
 import AdminAnalytics from "./pages/admin/AdminAnalytics.jsx";
 import AIMonitor from "./pages/admin/AIMonitor.jsx";
+import UserManagement from "./pages/admin/UserManagement.jsx";
 
 /**
  * Route map
@@ -37,6 +40,8 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
@@ -61,6 +66,7 @@ export default function App() {
           <Route path="/admin/loans" element={<LoanManagement />} />
           <Route path="/admin/analytics" element={<AdminAnalytics />} />
           <Route path="/admin/ai-monitor" element={<AIMonitor />} />
+          <Route path="/admin/users" element={<UserManagement />} />
         </Route>
       </Route>
 

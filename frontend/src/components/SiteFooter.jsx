@@ -3,6 +3,7 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 
 import { BRAND, DEMO_ACCOUNTS, FOOTER_LINKS } from "../branding.js";
+import { Link as RouterLink } from "react-router-dom";
 import BrandLogo from "./BrandLogo.jsx";
 
 const muted = "rgba(255,255,255,.68)";
@@ -133,9 +134,14 @@ export default function SiteFooter({ variant = "full" }) {
 
           <FooterColumn title="Demo accounts">
             {DEMO_ACCOUNTS.map((account) => (
-              <Box key={account.email}>
+              <Box
+                key={account.email}
+                component={RouterLink}
+                to={`/login?demo=${account.role === "Bank employee" ? "admin" : "customer"}`}
+                sx={{ display: "block", textDecoration: "none", "&:hover p": { color: "#fff" } }}
+              >
                 <Typography variant="caption" sx={{ color: "rgba(255,255,255,.5)" }}>
-                  {account.role}
+                  {account.role} - click to sign in
                 </Typography>
                 <Typography variant="body2" sx={{ color: muted, fontSize: 13 }}>
                   {account.email}

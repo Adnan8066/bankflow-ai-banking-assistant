@@ -27,6 +27,7 @@ import { Link as RouterLink, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 import { BRAND } from "../branding.js";
+import { DEMO_ACCOUNTS } from "../branding.js";
 import PublicHeader from "../components/PublicHeader.jsx";
 import SiteFooter from "../components/SiteFooter.jsx";
 
@@ -378,17 +379,29 @@ export default function Landing() {
                   <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
                     Demo logins
                   </Typography>
-                  {[
-                    ["Customer", "mohammed@bankflow.com", "Demo@12345"],
-                    ["Bank employee", "admin@bankflow.com", "Admin@12345"],
-                  ].map(([role, email, password]) => (
-                    <Box key={email} sx={{ mb: 1.5 }}>
+                  {DEMO_ACCOUNTS.map((account) => (
+                    <Box
+                      key={account.email}
+                      onClick={() =>
+                        navigate(
+                          `/login?demo=${account.role === "Bank employee" ? "admin" : "customer"}`
+                        )
+                      }
+                      sx={{
+                        mb: 1.5,
+                        p: 1,
+                        borderRadius: 2,
+                        cursor: "pointer",
+                        transition: "background-color .18s ease",
+                        "&:hover": { backgroundColor: "var(--bf-tint)" },
+                      }}
+                    >
                       <Typography variant="caption" color="text.secondary">
-                        {role}
+                        {account.role} - click to sign in
                       </Typography>
                       <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: "wrap" }}>
-                        <Chip size="small" label={email} variant="outlined" />
-                        <Chip size="small" label={password} variant="outlined" />
+                        <Chip size="small" label={account.email} variant="outlined" />
+                        <Chip size="small" label={account.password} variant="outlined" />
                       </Stack>
                     </Box>
                   ))}
